@@ -532,6 +532,7 @@ async function followUpLoop(){
   }
 }
 async function founderOrder(dept, text, viaCeo){
+  backendRun(dept, text);
   if (viaCeo){
     wire('chairman', 1); await go('chairman', 'ceo', 'DANIYAL — THE ORDER'); wire('chairman', 0);
     if (dept === 'chairman') return;
@@ -698,7 +699,7 @@ async function submitArticle(){
       for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
       photos.push({ name: f.name, data: btoa(bin) });
     }
-    const r = await fetch('/api/article', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meta: { sale: meta.sale, regular: meta.regular }, photos }) });
+    const r = await fetch(API_BASE + '/api/article', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meta: { sale: meta.sale, regular: meta.regular }, photos }) });
     if (r.ok){ const j = await r.json(); saved = j.saved; }
   } catch(e){}
   /* The full company process runs — purchase and listing in parallel, under the CEO */
@@ -868,7 +869,7 @@ function normalizeVoice(text){
   return t.split(/\s+/).map(w => WORDS[w] || w).join(' ').trim();
 }
 async function runCommand(raw){
-  if (location.protocol.indexOf('http') === 0){ try{ fetch('/api/command', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text: raw})}).catch(() => {}); }catch(e){} }
+  if (location.protocol.indexOf('http') === 0){ try{ fetch(API_BASE + '/api/command', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text: raw})}).catch(() => {}); }catch(e){} }
   const q = normalizeVoice((raw || '').toLowerCase().trim());
   if (!q) return;
   const nowMs = Date.now();
@@ -1161,7 +1162,7 @@ async function waFlow(label){
 }
 async function pollEvents(){
   try{
-    const r = await fetch('/api/events'); if (!r.ok) return;
+    const r = await fetch(API_BASE + '/api/events'); if (!r.ok) return;
     const j = await r.json();
     (j.events || []).forEach(e => WA_QUEUE.push(e));
     if (!WA_RUNNING){ WA_RUNNING = true; while (WA_QUEUE.length){ const e = WA_QUEUE.shift(); await waFlow(e.label || 'a client message arrived'); } WA_RUNNING = false; }
@@ -1171,11 +1172,33 @@ if (location.protocol.indexOf('http') === 0) setInterval(pollEvents, 4000);
 log('<b>J.A.R.V.I.S. OS v2 is ready</b> — the office runs on its own protocols: watch below — work moves department to department and only special exceptions reach the Chairman; the CEO, Daniyal Ahmed, is responsible for the team');
 log('Everyone is called by <b>name</b> — the name and details of each person are written under their department');
 setTimeout(() => { if (!window.JARVIS_LOCKED) greet(); else window.PENDING_GREET = true; }, 700);
+/* ===== LINK: frontend <-> backend (Chairman's order 2026-11-02: "frontend or backend ko proper link kro") =====
+   API_BASE is '' when this screen is served BY the bridge itself (same origin —
+   every call below then reaches the real backend). On the public Pages copy,
+   JARVIS_API carries the backend's own https address; the moment it is set and
+   the page is republished, the same screen drives the same backend from
+   anywhere. BACKEND_LIVE is proven by a /api/status probe, never assumed. */
+const JARVIS_API = '';
+const API_BASE = (location.hostname.endsWith('github.io') && JARVIS_API) ? JARVIS_API.replace(/\/$/, '') : '';
+let BACKEND_LIVE = false;
+const DEPT_SLUGS = { inv: 'jarvis-inventory-warehouse', sales: 'jarvis-sales-order-management', fin: 'jarvis-finance-accounts-taxation', care: 'jarvis-order-intake', merch: 'jarvis-merchandising-catalogue', mkt: 'jarvis-digital-marketing-advertising', audit: 'jarvis-command-centre', ceo: 'jarvis-command-centre', hub: 'jarvis-command-centre', content: 'jarvis-brand-content-creative', proc: 'jarvis-procurement-sourcing', stitch: 'jarvis-outsourced-production-vendors', log: 'jarvis-fulfilment-logistics' };
+async function backendRun(dept, label){
+  if (!BACKEND_LIVE) return;
+  const slug = DEPT_SLUGS[dept]; if (!slug) return;
+  try {
+    const r = await fetch(API_BASE + '/api/run/' + slug, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: LAST_CMD_RAW, instruction: LAST_CMD_RAW, command_text: LAST_CMD_RAW, transcript: LAST_CMD_RAW, label: label || '', source: 'jarvis-screen', date: new Date().toISOString().slice(0, 10), name: '', article: '', qty: '', movement: '' }) });
+    const j = await r.json();
+    const out = String((j && (j.result || j.error)) || '').replace(/\s+/g, ' ').slice(0, 320);
+    log('<b>Backend · ' + dept.toUpperCase() + ':</b> ' + (out || 'engine ne jawab diya (khaali)'));
+    connectBackend(true);
+  } catch(e){ log('<b>Backend · ' + dept.toUpperCase() + ':</b> engine tak pohnch nahi hui — ' + e.message); }
+}
 /* ===== backend connection (local bridge) — active only when this screen is served over http ===== */
 function shortName(a){ a = String(a || ''); const m = [['Sorrel','Sorrel'],['Echo','Echo'],['ROMA','ROMA by Brenish'],['Roma','ROMA by Brenish'],['Saha','Saha'],['Rumi','Rumi'],['Norine','Norine'],['Afsanay','Afsanay']]; for (const pair of m) if (a.includes(pair[0])) return pair[1]; return a.split('\u2013')[0].trim(); }
-function connectBackend(){
-  if (location.protocol.indexOf('http') !== 0) return;
-  fetch('/api/registers').then(r => r.json()).then(j => {
+function connectBackend(quiet){
+  if (!API_BASE && location.protocol.indexOf('http') !== 0) return;
+  fetch(API_BASE + '/api/status').then(r => r.json()).then(s => { BACKEND_LIVE = !!(s && s.n8n); if (!quiet) log('<b>Backend link:</b> ' + (BACKEND_LIVE ? 'CONNECTED — har order asal department engine ko bhi jayega' : 'bridge mila, lekin n8n engines band hain')); }).catch(() => { BACKEND_LIVE = false; });
+  fetch(API_BASE + '/api/registers').then(r => r.json()).then(j => {
     R('reg-orders').innerHTML = '<table><tr><th>Order</th><th>Article</th><th>Amount</th><th>Status</th></tr><tr><td colspan="4">No orders on record — the registers are fresh</td></tr></table>';
     R('reg-stock').innerHTML = '<table><tr><th>Article</th><th>On hand</th><th>Reserved</th></tr><tr><td colspan="3">No stock on record — the registers are fresh</td></tr></table>';
     R('reg-cod').innerHTML = '<table><tr><th>Order</th><th>COD</th><th>Courier</th><th>Status</th></tr><tr><td colspan="4">No COD on record — the registers are fresh</td></tr></table>';
@@ -1193,7 +1216,7 @@ function connectBackend(){
       DATA.cod = { amount: +c.cod_amount, status: c.status };
       R('reg-cod').innerHTML = '<table><tr><th>Order</th><th>COD</th><th>Courier</th><th>Status</th></tr>' + j.cod.map(x => '<tr><td><b>\u2026' + x.order_no.slice(-10) + '</b></td><td><b>' + fmt(+x.cod_amount) + '</b></td><td>' + x.courier + '</td><td>' + x.status.replace(/_/g, ' ') + '</td></tr>').join('') + '</table>';
     }
-    log('<b>Connected to the local J.A.R.V.I.S. backend</b> \u2014 live trial registers loaded (orders, stock, COD)');
+    if (!quiet) log('<b>Connected to the J.A.R.V.I.S. backend</b> \u2014 live trial registers loaded (orders, stock, COD)');
   }).catch(() => {});
 }
 connectBackend();
