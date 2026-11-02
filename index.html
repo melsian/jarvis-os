@@ -457,6 +457,7 @@ function seg(x, y){ return new Promise(res => { const dist = Math.sqrt((x-cur.x)
 async function go(to, person, text){ showWalker(); if (person) setWalker(person, text); else if (text) label.textContent = text; const D = DOORS[to]; if (!D) return; const dx = D[0], dy = D[1], ds = D[2]; if (Math.abs(dx-cur.x) < 1 && Math.abs(dy-cur.y) < 1) return; const vx = dx < 40 ? 33.5 : (dx > 60 ? 66.5 : 50); const HMAP = { '17':'st-h1', '36.5':'st-h2', '56':'st-h3', '75':'st-h4' }; const VMAP = { '33.5':'st-v1', '66.5':'st-v2' }; const glows = []; [HMAP[String(curStreet)], HMAP[String(ds)], VMAP[String(vx)]].forEach(id => { if (id && !glows.includes(id)) glows.push(id); }); glows.forEach(id => { const e = R(id); if (e) e.classList.add('on'); }); const room = R('r-' + (to === 'founder' ? 'chairman' : to)); if (room) room.classList.add('arriving'); await seg(cur.x, curStreet); await seg(vx, curStreet); await seg(vx, ds); await seg(dx, ds); await seg(dx, dy); glows.forEach(id => { const e = R(id); if (e) e.classList.remove('on'); }); if (room) room.classList.remove('arriving'); curStreet = ds; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let busy = false;
+let LAST_CMD_RAW = '', LAST_CMD_AT = 0;
 async function beam(wireId, from, to, text){
   wire(wireId, 1); await go(to, from, (TEAM[from] || from).split(' ')[0].toUpperCase() + ' — ' + text); wire(wireId, 0);
 }
@@ -870,6 +871,9 @@ async function runCommand(raw){
   if (location.protocol.indexOf('http') === 0){ try{ fetch('/api/command', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text: raw})}).catch(() => {}); }catch(e){} }
   const q = normalizeVoice((raw || '').toLowerCase().trim());
   if (!q) return;
+  const nowMs = Date.now();
+  if (raw === LAST_CMD_RAW && nowMs - LAST_CMD_AT < 4000){ log('<b>J.A.R.V.I.S.:</b> wohi baat abhi suni thi — dobara nahi chalaya'); return; }
+  LAST_CMD_RAW = raw; LAST_CMD_AT = nowMs;
   if (busy){ PENDING_CMD = raw; log('<b>J.A.R.V.I.S.:</b> one instruction is already running, Chairman \u2014 yours is noted, and it will run by itself the moment the office is free'); return; }
   busy = true; hubGlow(true, 'Instruction received — J.A.R.V.I.S. is on it');
   const fin = () => { busy = false; hubGlow(false); if (PENDING_CMD){ const p = PENDING_CMD; PENDING_CMD = null; setTimeout(() => runCommand(p), 400); } };
@@ -1079,6 +1083,11 @@ async function runCommand(raw){
         if (ans.length > 500){ const cut = ans.slice(0, 500); const dot = Math.max(cut.lastIndexOf('.'), cut.lastIndexOf('۔')); ans = dot > 60 ? cut.slice(0, dot + 1) : cut; }
         say(ans); return fin();
       }
+    }
+    const toks = q.split(' ').filter(Boolean);
+    if (toks.length <= 1 || (toks.length <= 2 && q.length <= 13)){
+      log('<b>J.A.R.V.I.S.:</b> adhoora lafz suna ("' + raw + '") — yeh koi order nahi, nazar andaz kar diya');
+      return fin();
     }
     await founderOrder('hub', 'SAMAJH');
     await sleep(500);
