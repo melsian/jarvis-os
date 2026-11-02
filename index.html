@@ -1102,7 +1102,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const mic = R('micbtn');
 function micLabel(){ mic.textContent = PERM_WAIT ? 'TAP ONCE — allow mic, then I listen on my own' : (LISTEN ? 'LISTENING — just speak' : 'EAR CLOSED — tap to open'); mic.classList.toggle('rec', !!(LISTEN && REC_ON)); }
 function startListening(){
-  if (!rec || !LISTEN || SPEAKING || REC_ON || PERM_WAIT) return;
+  if (!rec || !LISTEN || SPEAKING || REC_ON || PERM_WAIT || window.JARVIS_LOCKED) return;
   try { rec.lang = recLang; rec.start(); } catch(e){}
 }
 if (SR){
@@ -1161,7 +1161,7 @@ async function pollEvents(){
 if (location.protocol.indexOf('http') === 0) setInterval(pollEvents, 4000);
 log('<b>J.A.R.V.I.S. OS v2 is ready</b> — the office runs on its own protocols: watch below — work moves department to department and only special exceptions reach the Chairman; the CEO, Daniyal Ahmed, is responsible for the team');
 log('Everyone is called by <b>name</b> — the name and details of each person are written under their department');
-setTimeout(greet, 700);
+setTimeout(() => { if (!window.JARVIS_LOCKED) greet(); else window.PENDING_GREET = true; }, 700);
 /* ===== backend connection (local bridge) — active only when this screen is served over http ===== */
 function shortName(a){ a = String(a || ''); const m = [['Sorrel','Sorrel'],['Echo','Echo'],['ROMA','ROMA by Brenish'],['Roma','ROMA by Brenish'],['Saha','Saha'],['Rumi','Rumi'],['Norine','Norine'],['Afsanay','Afsanay']]; for (const pair of m) if (a.includes(pair[0])) return pair[1]; return a.split('\u2013')[0].trim(); }
 function connectBackend(){
@@ -1192,6 +1192,40 @@ grabPhotos(); setWalker('ceo', 'DANIYAL');
 ambientLoop();
 /* FINAL TEST — fresh start (Chairman's order, 2026-11-01): all data cleared, so the desk starts empty and nobody pops until real work arrives. */
 followUpLoop();
+</script>
+<style>
+#keygate{position:fixed;inset:0;z-index:999;background:rgba(2,6,16,.94);display:none;align-items:center;justify-content:center}
+#keygate .kcard{background:linear-gradient(160deg,rgba(16,28,52,.97),rgba(6,12,26,.97));border:1px solid rgba(125,211,252,.35);border-radius:20px;padding:34px 38px;text-align:center;max-width:340px;width:88%;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+#keygate .ktitle{font-size:25px;font-weight:800;letter-spacing:3px;color:#eaf4ff}
+#keygate .ksub{font-size:12px;color:#8fa5c9;margin:6px 0 20px;letter-spacing:1px}
+#keygate .klabel{font-size:13px;color:#cfe6ff;margin-bottom:9px}
+#keyinput{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:11px;border:1px solid rgba(125,211,252,.45);background:rgba(3,10,22,.85);color:#fff;font-size:16px;text-align:center;letter-spacing:2px;outline:none}
+#keybtn{margin-top:13px;width:100%;padding:12px;border:none;border-radius:11px;background:linear-gradient(180deg,#38bdf8,#0369a1);color:#fff;font-size:15px;font-weight:800;letter-spacing:2px;cursor:pointer}
+#keyerr{color:#fda4af;font-size:12.5px;min-height:17px;margin-top:10px}
+#keygate .knote{color:#64748b;font-size:11px;margin-top:13px;line-height:1.5}
+</style>
+<div id="keygate"><div class="kcard">
+<div class="ktitle">J.A.R.V.I.S. OS</div>
+<div class="ksub">MELSIAN AI · HERBAZAR.PK</div>
+<div class="klabel">Access key darj karein</div>
+<input id="keyinput" type="password" placeholder="Access key" autocomplete="off">
+<button id="keybtn">ENTER</button>
+<div id="keyerr"></div>
+<div class="knote">Yeh screen sirf unhi ke liye hai jin ko Chairman ne key di hai.<br>Ek dafa key darj karne par is device par dobara nahi mangi jayegi.</div>
+</div></div>
+<script>
+(function(){
+  var KEY_HASH = '3cf0c921941f37cca590ff40bd22a965cb8be9ef4ec6d2aeebcb06647f3a9277';
+  window.JARVIS_LOCKED = true;
+  var ov = document.getElementById('keygate');
+  function sha(t){ return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function(b){ return Array.from(new Uint8Array(b)).map(function(x){ return x.toString(16).padStart(2, '0'); }).join(''); }); }
+  function unlock(){ window.JARVIS_LOCKED = false; ov.style.display = 'none'; try { log('<b>J.A.R.V.I.S.:</b> Access granted — the office is open.'); } catch(e){} if (window.PENDING_GREET){ window.PENDING_GREET = false; try { greet(); } catch(e){} } try { startListening(); } catch(e){} }
+  function boot(){ try { if (localStorage.getItem('jarvis_key_hash') === KEY_HASH){ unlock(); return; } } catch(e){} ov.style.display = 'flex'; var ki = document.getElementById('keyinput'); if (ki) ki.focus(); }
+  function tryKey(){ var v = document.getElementById('keyinput').value.trim().toLowerCase(); if (!v) return; if (!window.crypto || !crypto.subtle){ document.getElementById('keyerr').textContent = 'Secure (https) page required for the key check'; return; } sha(v).then(function(h){ if (h === KEY_HASH){ try { localStorage.setItem('jarvis_key_hash', KEY_HASH); } catch(e){} unlock(); } else { document.getElementById('keyerr').textContent = 'Wrong key — dobara koshish karein'; document.getElementById('keyinput').select(); } }); }
+  document.getElementById('keybtn').addEventListener('click', tryKey);
+  document.getElementById('keyinput').addEventListener('keydown', function(e){ if (e.key === 'Enter') tryKey(); });
+  boot();
+})();
 </script>
 </body>
 </html>
