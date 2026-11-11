@@ -1232,12 +1232,26 @@ async function executeInstruction(raw, q){
   for (const d of depts){ await orbGo(d); }
   await orbGo('hub'); hideOrb();
   const snap = BACKEND_LIVE ? await regSnapshot() : null;
-  await Promise.all(depts.map((d, i) => deptWork(d, label, 4200 + i * 900, snap)));
+  window.ENGINE_REPLIES = {};
+  await Promise.all(depts.map(async (d, i) => {
+    registerFollowUp(d, label); work(d, 1); setTask(d, WORKTXT[d] || 'Working on the instruction');
+    const slug = DEPT_SLUGS[d];
+    if (slug && BACKEND_LIVE) {
+      try {
+        const r = await fetch(API_BASE + '/api/run/' + slug, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: raw, instruction: raw, command_text: raw, transcript: raw, label: label || '', source: 'jarvis-screen', date: new Date().toISOString().slice(0, 10), name: '', article: '', qty: '', movement: '' }) });
+        const j = await r.json();
+        window.ENGINE_REPLIES[d] = j;
+        log('<b>Backend · ' + d.toUpperCase() + ':</b> ' + String((j && (j.result || j.error)) || 'engine ne jawab diya (khaali)').replace(/\s+/g, ' ').slice(0, 320));
+      } catch(e){ log('<b>Backend · ' + d.toUpperCase() + ':</b> engine tak pohnch nahi hui — ' + e.message); }
+    }
+    work(d, 0); setTask(d, 'Report board par likh di — CEO verify karega');
+  }));
   await go('chairman', 'ceo', 'FAHAD \u2014 DONE');
   /* WRITTEN REPORT (Chairman's order 2026-11-04): completion register mein
      sirf EVIDENCE ke saath darj hoti hai, aur poori report board par likhi
      jati hai — "details are in the feed above" wala zamana gaya. */
-  const evidence = snap ? depts.map(d => (TEAM[d] || d) + ': ' + snapLine(d, snap)).join(' | ') : '';
+  const engEv = depts.map(d => { const rep = (window.ENGINE_REPLIES || {})[d]; const s = rep && (rep.result || rep.error); return s ? (TEAM[d] || d) + ': ' + String(s).replace(/\s+/g, ' ').slice(0, 200) : ''; }).filter(Boolean).join(' | ');
+  const evidence = engEv || (snap ? depts.map(d => (TEAM[d] || d) + ': ' + snapLine(d, snap)).join(' | ') : '');
   let tState = 'koi bridge task nahi bana';
   if (taskId) {
     if (evidence) {
@@ -1245,7 +1259,33 @@ async function executeInstruction(raw, q){
     } else tState = 'OPEN \u2014 evidence nahi mila';
   }
   log('<b>' + TEAM.ceo + ' (CEO) \u2014 WRITTEN REPORT:</b> instruction: \u201C' + raw + '\u201D<br>Departments: ' + depts.map(d => TEAM[d]).join(', ') + '<br>Evidence (registers se): ' + (evidence || 'backend band hai \u2014 kuch record nahi hua') + '<br>Task: ' + (taskId ? taskId + ' \u2014 ' + tState : tState));
-  speak(BACKEND_LIVE ? 'Chairman, the written report is on the board.' : 'Backend band hai, Chairman. Yeh instruction record nahi hua.');
+  try {
+    const reps2 = window.ENGINE_REPLIES || {};
+    const esc = s => String(s == null ? '' : s);
+    let rh = '';
+    for (const d of depts) {
+      const rep = reps2[d]; if (!rep) continue;
+      const rj = rep.raw || rep;
+      rh += '<h4>' + (TEAM[d] || d) + '</h4>';
+      if (rj.website_listing) {
+        const wl = rj.website_listing;
+        rh += '<div class="prow"><span>Listing</span><b>' + esc(wl.title) + '</b></div>'
+          + '<div class="prow"><span>Price</span><b>' + (wl.sale_price != null && wl.sale_price !== '' ? 'Sale Rs. ' + Number(wl.sale_price).toLocaleString('en-US') : '') + (wl.regular_price ? ' · Regular Rs. ' + Number(wl.regular_price).toLocaleString('en-US') : '') + '</b></div>'
+          + '<div class="prow"><span>Stock</span><b>' + esc(wl.stock_qty) + ' · Category: ' + esc(wl.category) + '</b></div>'
+          + '<div class="prow"><span>Photos</span><b>' + esc(wl.photo_files) + '</b></div>'
+          + '<div style="white-space:pre-wrap;font-size:13px;line-height:1.5;margin:6px 0">' + esc(wl.description) + '</div>';
+      }
+      if (rj.catalogue_status) rh += '<div class="prow"><span>WhatsApp catalogue</span><b>' + esc(rj.catalogue_status) + (rj.whatsapp_catalogue_item ? ' · Rs. ' + Number(rj.whatsapp_catalogue_item.price || 0).toLocaleString('en-US') : '') + '</b></div>';
+      if (rj.caption) rh += '<div class="prow"><span>Caption</span><b>' + esc(String(rj.caption).split('\n')[0].slice(0, 120)) + '</b></div>';
+      if (rj.google_ads_draft || rj.meta_ads_draft) rh += '<div class="prow"><span>Ads drafts</span><b>Google + Meta drafts ready hain</b></div>';
+      if (Array.isArray(rj.to_confirm) && rj.to_confirm.length) rh += '<div class="prow"><span>TO_CONFIRM</span><b>' + rj.to_confirm.map(esc).join(' · ') + '</b></div>';
+      if (Array.isArray(rj.errors) && rj.errors.length) rh += '<div class="prow"><span>Masla</span><b>' + rj.errors.map(esc).join(' · ') + '</b></div>';
+      if (!rj.website_listing && !rj.caption && rep.result) rh += '<div style="font-size:13.5px;line-height:1.55">' + esc(rep.result) + '</div>';
+      if (!rj.website_listing && !rj.caption && !rep.result) rh += '<div class="prow"><span>Report</span><b>engine se tafseel nahi mili</b></div>';
+    }
+    if (rh) { rh += '<h4>TASK</h4><div class="prow"><span>Haalat</span><b>' + esc(taskId ? taskId + ' — ' + tState : tState) + '</b></div>'; showPanelWait('TASK REPORT — KAAM KI TAFSEEL', 'Instruction: ' + raw, rh); }
+  } catch(e){}
+  speak(BACKEND_LIVE ? 'Chairman, the written report is on your screen.' : 'Backend band hai, Chairman. Yeh instruction record nahi hua.');
   refreshTasks();
   await go('ceo', 'ceo', 'FAHAD'); hideWalker();
 }
