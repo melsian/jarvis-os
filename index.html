@@ -470,6 +470,26 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
   function jresp(obj, status){ return Promise.resolve(new Response(JSON.stringify(obj), { status: status || 200, headers: { 'Content-Type': 'application/json' } })); }
   function call(path, method, bodyObj){ var h = { 'x-jarvis-key': key() }; var o = { method: method, headers: h }; if (bodyObj !== undefined) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(bodyObj); } return ORIG_FETCH(CLOUD + path, o); }
   function parseBody(opts){ try { return (opts && opts.body) ? JSON.parse(opts.body) : {}; } catch(e){ return {}; } }
+  function summarizeRun(j){
+    if (!j || typeof j !== 'object') return 'engine ne jawab diya';
+    if (j.result) return String(j.result);
+    var parts = [];
+    if (j.status) parts.push('Status: ' + j.status);
+    if (j.article_name) parts.push('Article: ' + j.article_name);
+    var wl = j.website_listing;
+    if (wl && wl.title) parts.push('Listing: "' + wl.title + '"' + (wl.sale_price != null && wl.sale_price !== '' ? ' · Sale Rs. ' + Number(wl.sale_price).toLocaleString('en-US') : '') + (wl.regular_price ? ' (regular Rs. ' + Number(wl.regular_price).toLocaleString('en-US') + ')' : '') + ' · stock: ' + wl.stock_qty);
+    if (j.catalogue_status) parts.push('WhatsApp catalogue: ' + j.catalogue_status);
+    if (j.caption) parts.push('Caption: ' + String(j.caption).split('\n')[0].slice(0, 140));
+    if (j.reply) parts.push(String(j.reply));
+    if (j.message) parts.push(String(j.message));
+    if (j.summary) parts.push(String(j.summary));
+    if (j.route && j.route.department) parts.push('Department: ' + j.route.department);
+    if (j.task_draft) parts.push('task draft ban gaya hai');
+    if (Array.isArray(j.to_confirm) && j.to_confirm.length) parts.push('TO_CONFIRM: ' + j.to_confirm.join(' · '));
+    if (Array.isArray(j.errors) && j.errors.length) parts.push('Wajah: ' + j.errors.join(' · '));
+    if (!parts.length) parts.push('engine ne jawab diya (' + Object.keys(j).slice(0, 6).join(', ') + ')');
+    return parts.join(' — ').slice(0, 320);
+  }
   window.fetch = function(input, opts){
     var url = (typeof input === 'string') ? input : ((input && input.url) || '');
     var m = url.match(/\/api\/([a-z0-9\-\/]+)(\?.*)?$/i);
@@ -484,7 +504,7 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
     if (path === 'task/accept' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'ACCEPTED' });
     if (path === 'task/complete' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'DONE', evidence: body.evidence || '' });
     if (path === 'task/cancel' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'CANCELLED' });
-    if (path.indexOf('run/') === 0 && method === 'POST') return call('jarvis-' + path.slice(4), 'POST', body);
+    if (path.indexOf('run/') === 0 && method === 'POST') return call('jarvis-' + path.slice(4), 'POST', body).then(function(r){ return r.json(); }).then(function(j){ return jresp({ result: summarizeRun(j), raw: j }); }).catch(function(){ return jresp({ ok: false, error: 'engine tak pohnch nahi hui' }, 502); });
     if (path === 'brain' && method === 'POST') return call('jarvis-api-brain', 'POST', body);
     if (path === 'article' && method === 'POST') { var b2 = { meta: body.meta || {}, photos: ((body.photos || []).map(function(p, i){ var o = { name: (p && p.name) || 'photo' }; if (i < 4 && p && p.data) o.data = p.data; return o; })) }; return call('jarvis-api-article', 'POST', b2); }
     if (path === 'purchase-request/approve' && method === 'POST') return call('jarvis-api-pr-approve', 'POST', body);
