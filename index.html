@@ -504,7 +504,7 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
     if (path === 'task/accept' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'ACCEPTED' });
     if (path === 'task/complete' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'DONE', evidence: body.evidence || '' });
     if (path === 'task/cancel' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'CANCELLED' });
-    if (path.indexOf('run/') === 0 && method === 'POST') return call('jarvis-' + path.slice(4), 'POST', body).then(function(r){ return r.json(); }).then(function(j){ return jresp({ result: summarizeRun(j), raw: j }); }).catch(function(){ return jresp({ ok: false, error: 'engine tak pohnch nahi hui' }, 502); });
+    if (path.indexOf('run/') === 0 && method === 'POST') { var runOnce = function(){ return call('jarvis-' + path.slice(4), 'POST', body).then(function(r){ return r.json(); }); }; return runOnce().catch(function(){ return runOnce(); }).then(function(j){ return jresp({ result: summarizeRun(j), raw: j }); }).catch(function(e){ return jresp({ ok: false, error: 'engine tak pohnch nahi hui (' + String((e && e.message) || e).slice(0, 120) + ')' }, 502); }); }
     if (path === 'brain' && method === 'POST') return call('jarvis-api-brain', 'POST', body);
     if (path === 'article' && method === 'POST') { var b2 = { meta: body.meta || {}, photos: ((body.photos || []).map(function(p, i){ var o = { name: (p && p.name) || 'photo' }; if (i < 4 && p && p.data) o.data = p.data; return o; })) }; return call('jarvis-api-article', 'POST', b2); }
     if (path === 'purchase-request/approve' && method === 'POST') return call('jarvis-api-pr-approve', 'POST', body);
@@ -1280,7 +1280,8 @@ async function executeInstruction(raw, q){
       if (rj.google_ads_draft || rj.meta_ads_draft) rh += '<div class="prow"><span>Ads drafts</span><b>Google + Meta drafts ready hain</b></div>';
       if (Array.isArray(rj.to_confirm) && rj.to_confirm.length) rh += '<div class="prow"><span>TO_CONFIRM</span><b>' + rj.to_confirm.map(esc).join(' · ') + '</b></div>';
       if (Array.isArray(rj.errors) && rj.errors.length) rh += '<div class="prow"><span>Masla</span><b>' + rj.errors.map(esc).join(' · ') + '</b></div>';
-      if (!rj.website_listing && !rj.caption && rep.result) rh += '<div style="font-size:13.5px;line-height:1.55">' + esc(rep.result) + '</div>';
+      if (!rj.website_listing && !rj.caption && rep.error) rh += '<div class="prow"><span>Masla</span><b>' + esc(rep.error) + '</b></div>';
+      else if (!rj.website_listing && !rj.caption && rep.result) rh += '<div style="font-size:13.5px;line-height:1.55">' + esc(rep.result) + '</div>';
       if (!rj.website_listing && !rj.caption && !rep.result) rh += '<div class="prow"><span>Report</span><b>engine se tafseel nahi mili</b></div>';
     }
     if (rh) { rh += '<h4>TASK</h4><div class="prow"><span>Haalat</span><b>' + esc(taskId ? taskId + ' — ' + tState : tState) + '</b></div>'; showPanelWait('TASK REPORT — KAAM KI TAFSEEL', 'Instruction: ' + raw, rh); }
