@@ -611,9 +611,9 @@ async function followUpLoop(){
     await go('ceo', 'ceo', 'FAHAD'); hideWalker();
     if (f.round >= 2){
       f.state = 'FOLLOWED UP'; holdDept(f.dept, -1); renderFollowUps();
-      setTask('ceo', 'Follow-up closed: ' + f.label);
+      setTask('ceo', 'Follow-up rounds closed (asal haalat Task Board par): ' + f.label);
       await go('chairman', 'ceo', 'FAHAD \u2014 FOLLOW-UP DONE');
-      log('<b>' + TEAM.ceo + ' (CEO):</b> follow-up mukammal \u2014 ' + f.label + ' (with ' + (TEAM[f.dept] || f.dept) + '), ' + f.round + ' rounds check kiya. Asal haalat Task Board aur registers mein likhi hai \u2014 completion ka elan sirf evidence ke saath hota hai.');
+      log('<b>' + TEAM.ceo + ' (CEO):</b> follow-up ke ' + f.round + ' rounds ho gaye \u2014 ' + f.label + ' (with ' + (TEAM[f.dept] || f.dept) + '). Yeh rounds sirf reminder hain; kaam mukammal sirf tab hai jab Task Board par DONE aur registers mein evidence darj ho.');
       speak('Chairman, the CEO has followed up. The written state is on the task board.');
       await go('ceo', 'ceo', 'FAHAD'); hideWalker();
       setTimeout(() => { const i = FOLLOWUPS.indexOf(f); if (i > -1) FOLLOWUPS.splice(i, 1); renderFollowUps(); }, 25000);
