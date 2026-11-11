@@ -504,6 +504,7 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
     if (path === 'task/accept' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'ACCEPTED' });
     if (path === 'task/complete' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'DONE', evidence: body.evidence || '' });
     if (path === 'task/cancel' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'CANCELLED' });
+    if (path === 'enrich' && method === 'POST') return call('jarvis-api-enrich', 'POST', body).then(function(r){ return r.json(); }).then(function(j){ var line = (j && j.website_listing) ? ('Listing pack mukammal — ' + (j.website_listing.title || '') + ' · Sale Rs. ' + (j.website_listing.sale_price || '')) : ''; return jresp({ result: line, error: (j && j.error) || undefined, raw: j }); }).catch(function(e){ return jresp({ ok: false, error: 'enrich tak pohnch nahi hui (' + String((e && e.message) || e).slice(0, 120) + ')' }, 502); });
     if (path.indexOf('run/') === 0 && method === 'POST') { var runSlug = path.slice(4); if (runSlug.indexOf('jarvis-') !== 0) runSlug = 'jarvis-' + runSlug; var runOnce = function(){ return call('jarvis-api-run', 'POST', { slug: runSlug, payload: body }).then(function(r){ return r.json(); }); }; return runOnce().catch(function(){ return runOnce(); }).then(function(j){ return jresp({ result: summarizeRun(j), raw: j }); }).catch(function(e){ return jresp({ ok: false, error: 'engine tak pohnch nahi hui (' + String((e && e.message) || e).slice(0, 120) + ')' }, 502); }); }
     if (path === 'brain' && method === 'POST') return call('jarvis-api-brain', 'POST', body);
     if (path === 'article' && method === 'POST') { var b2 = { meta: body.meta || {}, photos: ((body.photos || []).map(function(p, i){ var o = { name: (p && p.name) || 'photo' }; if (i < 4 && p && p.data) o.data = p.data; return o; })) }; return call('jarvis-api-article', 'POST', b2); }
@@ -1211,6 +1212,8 @@ async function executeInstruction(raw, q){
     }
   }
   let depts = matchDepts(q);
+  window.__ENRICH = null;
+  try { const __em = String(raw).match(/HBZ[-\s]?(\d+)/i); const __pf = document.getElementById('a_photos'); if (__em && __pf && __pf.files && __pf.files.length && /photo|tasveer|mukammal|tafseel|update|pack/i.test(String(raw))) { if (depts.indexOf('merch') === -1) depts.unshift('merch'); window.__ENRICH = { code: 'HBZ-' + __em[1], files: __pf.files }; } } catch (e) {}
   if (!depts.length) depts = ['ceo'];
   const label = raw.length > 44 ? raw.slice(0, 44) + '\u2026' : raw;
   await go('chairman', 'ceo', 'FAHAD');
@@ -1238,7 +1241,15 @@ async function executeInstruction(raw, q){
     const slug = DEPT_SLUGS[d];
     if (slug && BACKEND_LIVE) {
       try {
-        const r = await fetch(API_BASE + '/api/run/' + slug, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: raw, instruction: raw, command_text: raw, transcript: raw, label: label || '', source: 'jarvis-screen', date: new Date().toISOString().slice(0, 10), name: '', article: '', qty: '', movement: '' }) });
+        let r;
+        if (d === 'merch' && window.__ENRICH) {
+          const __list = Array.prototype.slice.call(window.__ENRICH.files);
+          const __photos = [];
+          for (let __i = 0; __i < __list.length && __i < 12; __i++) { const __f = __list[__i]; if (__i < 4) { try { const __d = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(__f); }); const __s = String(__d); __photos.push({ name: __f.name, data: __s.indexOf(',') >= 0 ? __s.split(',')[1] : __s }); } catch (e) { __photos.push({ name: __f.name }); } } else { __photos.push({ name: __f.name }); } }
+          r = await fetch(API_BASE + '/api/enrich', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: window.__ENRICH.code, photos: __photos }) });
+        } else {
+          r = await fetch(API_BASE + '/api/run/' + slug, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: raw, instruction: raw, command_text: raw, transcript: raw, label: label || '', source: 'jarvis-screen', date: new Date().toISOString().slice(0, 10), name: '', article: '', qty: '', movement: '' }) });
+        }
         const j = await r.json();
         window.ENGINE_REPLIES[d] = j;
         log('<b>Backend · ' + d.toUpperCase() + ':</b> ' + String((j && (j.result || j.error)) || 'engine ne jawab diya (khaali)').replace(/\s+/g, ' ').slice(0, 320));
@@ -1284,7 +1295,7 @@ async function executeInstruction(raw, q){
       else if (!rj.website_listing && !rj.caption && rep.result) rh += '<div style="font-size:13.5px;line-height:1.55">' + esc(rep.result) + '</div>';
       if (!rj.website_listing && !rj.caption && !rep.result) rh += '<div class="prow"><span>Report</span><b>engine se tafseel nahi mili</b></div>';
     }
-    if (rh) { rh += '<h4>TASK</h4><div class="prow"><span>Haalat</span><b>' + esc(taskId ? taskId + ' — ' + tState : tState) + '</b></div>'; showPanelWait('TASK REPORT — KAAM KI TAFSEEL [B4]', 'Instruction: ' + raw, rh); }
+    if (rh) { rh += '<h4>TASK</h4><div class="prow"><span>Haalat</span><b>' + esc(taskId ? taskId + ' — ' + tState : tState) + '</b></div>'; showPanelWait('TASK REPORT — KAAM KI TAFSEEL [B5]', 'Instruction: ' + raw, rh); }
   } catch(e){}
   speak(BACKEND_LIVE ? 'Chairman, the written report is on your screen.' : 'Backend band hai, Chairman. Yeh instruction record nahi hua.');
   refreshTasks();
