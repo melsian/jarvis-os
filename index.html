@@ -421,7 +421,7 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
       <div class="card">
         <h3 id="p-today">TODAY · CEO TASK <span>BOARD</span> — likhi hui report</h3>
         <div id="taskboard"><div class="empty">Abhi koi task register mein nahi</div></div>
-        <div class="btns" style="margin-top:8px"><button class="okb" onclick="deskCancelStale()">PURANE ASSIGNED TASKS BAND KAREIN</button></div>
+        <div class="btns" style="margin-top:8px"><button class="okb" onclick="deskCancelStale()">PURANE ASSIGNED TASKS BAND KAREIN</button></div><div class="btns" style="margin-top:8px"><button class="okb" style="border-color:#8a3033;color:#ff9d9d" onclick="jarvisClearTest()">&#129529; SAMPLE / TEST DATA CLEAR KAREIN</button></div>
       </div>
       <div class="card">
         <h3 id="p-sales">SALES &amp; CUSTOMER · LIVE <span>ACTIVITY</span></h3>
@@ -491,6 +491,7 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
     if (path === 'grn' && method === 'POST') return call('jarvis-api-grn', 'POST', body);
     if (path === 'invoice-match' && method === 'POST') return call('jarvis-api-invoice-match', 'POST', body);
     if (path === 'cod/settle' && method === 'POST') return call('jarvis-api-cod-settle', 'POST', body);
+    if (path === 'clear-test' && method === 'POST') return call('jarvis-api-clear-test', 'POST', {});
     if (path === 'events' && method === 'GET') return jresp({ ok: true, events: [] });
     if (path === 'command' && method === 'POST') return jresp({ ok: true });
     if (path === 'auth/state' && method === 'GET') return jresp({ setup_needed: false, authed: true, role: 'admin', email: 'chairman' });
@@ -500,6 +501,17 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
     if (path === 'transcribe') return jresp({ ok: false, error: 'cloud transcribe abhi nahi — browser wala jumla chalega' });
     if (path === 'publish-article' || path === 'publish-catalogue') return jresp({ ok: false, error: 'Publish abhi cloud mein nahi bana — pehle WordPress credential lagegi' });
     return jresp({ ok: false, error: 'Ye hissa cloud mein abhi nahi bana' });
+  };
+
+  window.jarvisClearTest = function(){
+    if (!window.confirm('TEST / SAMPLE data saaf kar dein? Asal 17 articles aur asal records NAHI miteinge.')) return;
+    window.fetch('/api/clear-test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(function(r){ return r.json(); }).then(function(j){
+      var lines = 'TEST DATA CLEAR';
+      if (j && j.ok) { var c = j.cleared || {}; for (var k in c) lines += '\n' + k + ': ' + c[k] + ' rows mite'; lines += '\nMehfooz — articles: ' + ((j.kept || {}).articles) + ', stock rows: ' + ((j.kept || {}).stock); }
+      else lines += '\nClear nahi hua: ' + ((j && j.error) || 'jawab nahi aya');
+      window.alert(lines);
+      location.reload();
+    }).catch(function(){ window.alert('TEST DATA CLEAR\nServer se rabta nahi hua — dobara koshish karein.'); });
   };
 })();
 
