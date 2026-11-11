@@ -486,7 +486,7 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
     if (path === 'task/cancel' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'CANCELLED' });
     if (path.indexOf('run/') === 0 && method === 'POST') return call('jarvis-' + path.slice(4), 'POST', body);
     if (path === 'brain' && method === 'POST') return call('jarvis-api-brain', 'POST', body);
-    if (path === 'article' && method === 'POST') { var b2 = { meta: body.meta || {}, photos: ((body.photos || []).map(function(p){ return { name: (p && p.name) || 'photo' }; })) }; return call('jarvis-api-article', 'POST', b2); }
+    if (path === 'article' && method === 'POST') { var b2 = { meta: body.meta || {}, photos: ((body.photos || []).map(function(p, i){ var o = { name: (p && p.name) || 'photo' }; if (i < 4 && p && p.data) o.data = p.data; return o; })) }; return call('jarvis-api-article', 'POST', b2); }
     if (path === 'purchase-request/approve' && method === 'POST') return call('jarvis-api-pr-approve', 'POST', body);
     if (path === 'grn' && method === 'POST') return call('jarvis-api-grn', 'POST', body);
     if (path === 'invoice-match' && method === 'POST') return call('jarvis-api-invoice-match', 'POST', body);
@@ -1028,13 +1028,13 @@ async function submitArticle(){
   const merTxt = merD ? (merD.status === 'DRAFT_READY' ? 'DRAFT READY — "' + (((merD.website_listing || {}).title) || merD.article_name || '') + '" · WhatsApp catalogue draft bhi saath hai' : 'NOT CREATED — ' + ((merD.errors || []).join(' · ') || merD.status || '')) : 'engine se jawab nahi aya';
   const conTxt = conD ? (conD.caption ? 'DRAFT READY — caption: "' + String(conD.caption).split('\n')[0].slice(0, 120) + '" · reel outline aur story text pack mein hai' : 'NOT CREATED — ' + ((conD.errors || []).join(' · ') || conD.status || '')) : 'engine se jawab nahi aya';
   const mktTxt = mktD ? (mktD.status === 'DRAFT_READY' ? 'DRAFT READY — Google + Meta ads drafts pack mein hain' : 'NOT CREATED — ' + ((mktD.errors || []).join(' · ') || mktD.status || '')) : 'engine se jawab nahi aya';
-  const anaTxt = anaD ? ('Photos parhi gayi — ' + [anaD.name, anaD.brand, anaD.category, anaD.colours ? 'colours: ' + anaD.colours : '', anaD.pieces_seen ? 'pieces seen: ' + anaD.pieces_seen : ''].filter(Boolean).join(' · ') + ((anaD.description_points && anaD.description_points.length) ? ' · ' + anaD.description_points.length + ' design points mile' : '')) : 'OFF — OpenAI key nahi mili (jarvis-keys.txt); tafseel TO_CONFIRM rahi, kuch invent nahi hua';
+  const anaTxt = anaD ? ('Photos parhi gayi — ' + [anaD.name, anaD.brand, anaD.category, anaD.colours ? 'colours: ' + anaD.colours : '', anaD.pieces_seen ? 'pieces seen: ' + anaD.pieces_seen : ''].filter(Boolean).join(' · ') + ((anaD.description_points && anaD.description_points.length) ? ' · ' + anaD.description_points.length + ' design points mile' : '')) : 'OFF — photo analysis is waqt nahi ho saka; tafseel TO_CONFIRM rahi, kuch invent nahi hua';
   log('<b>STATUS (automatic \u2014 you do not need to ask):</b> the purchase thread is with ' + TEAM.proc + ' and the listing thread with ' + TEAM.merch + '; the pack approval waits on your desk. The CEO will keep following both threads and report each completion here himself.');
   speak(packReady ? 'Chairman, the new article process is complete. The pack is ready for your approval.' : 'Chairman, article record ho gaya hai. Kuch drafts abhi pending hain — asal wajah panel mein likhi hai.');
   work('chairman', 1);
   await showPanelWait('NEW ARTICLE — FULL PROCESS COMPLETE', 'Under ' + TEAM.ceo + ', CEO · Purchase and listing ran in parallel · ' + new Date().toLocaleString([], {weekday:'long', day:'numeric', month:'long', hour:'2-digit', minute:'2-digit'}),
     '<h4>FROM THE CHAIRMAN</h4>'
-    + '<div class="prow"><span>Photos</span><b>' + (saved > -1 ? saved + ' saved in the office inbox' : files.length + ' held in this screen — send the same photos in the chat for the working pack') + '</b></div>'
+    + '<div class="prow"><span>Photos</span><b>' + (saved > -1 ? saved + ' photos cloud system mein mehfooz hain' : files.length + ' held in this screen — send the same photos in the chat for the working pack') + '</b></div>'
     + '<div class="prow"><span>Price</span><b>' + (meta.sale ? 'Sale Rs. ' + Number(meta.sale).toLocaleString('en-US') + (meta.regular ? ' · Regular Rs. ' + Number(meta.regular).toLocaleString('en-US') : '') + ' — given by the Chairman' : 'The Chairman will give it at this approval — the office never sets a price') + '</b></div>'
     + '<div class="prow"><span>Photo analysis</span><b>' + anaTxt + '</b></div>'
     + '<h4>PURCHASE — PROCUREMENT</h4>'
@@ -1048,7 +1048,7 @@ async function submitArticle(){
     + '<div class="prow"><span>Launch content</span><b>' + conTxt + '</b></div>'
     + '<div class="prow"><span>Ads drafts</span><b>' + mktTxt + '</b></div>'
     + '<h4>STATUS</h4><div class="prow"><span>Next step</span><b>' + (packReady ? 'Pack asal mein ready hai — aap ke approval ka intezar hai; approval se pehle kuch upload ya post NAHI hoga' : 'Pack ABHI ready NAHI — upar wali wajahain pehle hal hongi; CEO follow-up karke report dega') + '</b></div>'
-    + '<div class="pfoot">Yeh panel bridge ki asal pipeline report se bana hai — har line wohi hai jo department engines ne asal mein jawab diya. Poori report article ke inbox folder ki pipeline-report.json mein mehfooz hai.</div>');
+    + '<div class="pfoot">Yeh panel cloud ki asal pipeline report se bana hai — har line wohi hai jo department engines ne asal mein jawab diya. Poori report cloud registers mein mehfooz hai.</div>');
   work('chairman', 0);
   setTask('merch', 'The new article pack is presented — the upload follows the word of the Chairman');
   addApproval('article-' + Date.now(), 'New article pack — approve the upload?', 'Records: ' + (((window.LAST_ART || {}).records) || []).join(' · ') + ' — ' + (packReady ? 'listing + content drafts asal mein ready hain.' : 'kuch drafts pending hain; panel mein wajahain likhi hain.') + ' Stores-in happens when the goods arrive. The office places the website product as a DRAFT for your LIVE check — APPROVE only after you have watched the live draft; an article not watched live is not approved. REJECT = the pack goes back to Merchandising.', async function(){
