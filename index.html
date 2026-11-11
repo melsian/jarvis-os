@@ -292,8 +292,8 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
   <div class="top">
     <div class="logo">J.A.R.V.I.S. <span>OS</span> <span style="font-size:11px;color:#9db4d4;-webkit-text-fill-color:#9db4d4;letter-spacing:.05em">v2</span></div>
     <div class="biz">Herbazar.pk — Live Office · Protocol Model</div>
-    <span class="dot"></span><span class="live">LOCAL BACKEND</span>
-    <div class="mode">PILOT — TRIAL (TEST) DATA</div>
+    <span class="dot"></span><span class="live">CLOUD BACKEND</span>
+    <div class="mode">LIVE — ASAL DATA</div>
     <button class="micbtn" id="themebtn" onclick="toggleTheme()">LOOK: FULL NIGHT</button>
     <button class="micbtn" id="voicebtn" onclick="toggleVoice()">VOICE: ON</button>
     <button class="micbtn" id="demobtn" onclick="toggleDemo()">DEMO: OFF</button>
@@ -433,7 +433,7 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
     <button class="go" onclick="sendCommand()">SEND ORDER</button>
     <div class="voiceonly">VOICE + TEXT — J.A.R.V.I.S. bolne par bhi sunta hai aur likha hua bhi parhta hai. Bolein, ya neeche likh kar hukum dein.</div>
   </div>
-  <div class="note">J.A.R.V.I.S. OS v2 — PROTOCOL MODEL · At the top, in one big office, Chairman Farhan Haider and Founder Sana Farhan — the CEO, Fahad Iqbal, is responsible for the team day to day. Reports are taken from the CEO; in special cases the Chairman or Founder may call any employee directly. Everyone enters and leaves through their office door and walks the corridors — whoever moves, their photo and name move with them. This screen runs on the local backend’s trial registers; the real live connection comes at go-live.</div>
+  <div class="note">J.A.R.V.I.S. OS v2 — PROTOCOL MODEL · At the top, in one big office, Chairman Farhan Haider and Founder Sana Farhan — the CEO, Fahad Iqbal, is responsible for the team day to day. Reports are taken from the CEO; in special cases the Chairman or Founder may call any employee directly. Everyone enters and leaves through their office door and walks the corridors — whoever moves, their photo and name move with them. This screen runs on the cloud system — the registers are live and every record shown here is real.</div>
 </div>
 <div class="panel" id="apanel" onclick="if(event.target===this)closeAPanel()"><div class="pcard">
 <h3 id="p-pipeline">PRODUCT PIPELINE · NEW ARTICLE — PHOTOS AND PRICE ONLY</h3><div class="pmeta">The Chairman gives the photos, the prices and — if he wishes — the purchase details right here · the CEO arranges everything else · name, description, SEO content and category are done by the employees at upload time · nothing uploads without approval</div>
@@ -625,7 +625,7 @@ async function followUpLoop(){
   }
 }
 async function founderOrder(dept, text, viaCeo){
-  if (!BACKEND_LIVE){ log('<b>⚠ BACKEND BAND HAI:</b> yeh hukum sirf screen par chala — <b>kahin record NAHI hua</b>. Asal kaam ke liye laptop par <b>Start-Jarvis</b> chalaiye aur screen <b>http://localhost:8791</b> se kholiye — yeh hosted copy akeli koi record nahi bana sakti.'); speak('Backend band hai, Chairman. Yeh hukum record nahi hua.'); return 'offline'; }
+  if (!BACKEND_LIVE){ log('<b>⚠ BACKEND BAND HAI:</b> yeh hukum sirf screen par chala — <b>kahin record NAHI hua</b>. Cloud se rabta band hai — internet check kar ke screen refresh karein.'); speak('Backend band hai, Chairman. Yeh hukum record nahi hua.'); return 'offline'; }
   const runP = backendRun(dept, text);
   if (viaCeo){
     wire('chairman', 1); await go('chairman', 'ceo', 'FAHAD — THE ORDER'); wire('chairman', 0);
@@ -694,7 +694,7 @@ function dPrNo(row){ const m = String(row.notes || '').match(/PR-\d+/); return m
 function dPoNo(row){ const m = String(row.notes || '').match(/PO-\d+/); return m ? m[0] : ''; }
 function dCode(row){ const m = String(row.article || '').match(/HBZ-\d+/); return m ? m[0] : ''; }
 async function deskPost(path, payload){
-  if (!BACKEND_LIVE){ log('<b>⚠ BACKEND BAND HAI:</b> yeh action record NAHI hoga — laptop par Start-Jarvis chalaiye aur screen localhost se kholiye.'); return null; }
+  if (!BACKEND_LIVE){ log('<b>⚠ BACKEND BAND HAI:</b> yeh action record NAHI hoga — cloud se rabta band hai, screen refresh kar ke dobara koshish karein.'); return null; }
   try { const r = await fetch(API_BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const j = await r.json(); return { status: r.status, j }; }
   catch(e){ log('<b>⚠ BACKEND BAND HAI:</b> action pohanch nahi hua — kuch record nahi hua.'); return null; }
 }
@@ -873,7 +873,7 @@ async function buildReportHtml(){
      hi nahi ata tha aur har 0-stock article par jhoota ALERT lag jata tha. */
   let rj = null;
   try { const rr = await fetch(API_BASE + '/api/registers'); rj = await rr.json(); } catch(e){}
-  if (!rj) return '<div class="prow"><span>Report</span><b>Backend se registers nahi mile — report nahi ban sakti. Laptop par Start-Jarvis chalaiye.</b></div>';
+  if (!rj) return '<div class="prow"><span>Report</span><b>Backend se registers nahi mile — report nahi ban sakti. Cloud se rabta nahi hua — refresh kar ke dobara koshish karein.</b></div>';
   const esc = x => String(x == null ? '' : x);
   const artName = (sku, article) => { const a = esc(article).replace(/^HBZ-\d+ — /, ''); return (a && !a.startsWith('(unnamed')) ? a : (sku || a || '—'); };
   const purchases = rj.purchases || [], grns = rj.grn || [], stock = rj.stock || [], orders = rj.orders || [], cod = rj.cod || [], money = rj.money || [];
@@ -995,7 +995,7 @@ async function submitArticle(){
     else { artErr = 'bridge ka jawab: HTTP ' + r.status + ' — ' + String(await r.text().catch(() => '')).slice(0, 220); }
   } catch(e){ artErr = String((e && e.message) || e); }
   if (saved === -1){
-    log('<b>⚠ ARTICLE RECORD NAHI HUA:</b> <b>koi PR, koi stock record, koi finance entry, koi content pack NAHI bana</b>.' + (artErr ? ' <b>Asal wajah:</b> ' + artErr : ' Backend tak baat nahi pohanchi.') + ' Laptop par <b>Start-Jarvis</b> chala kar screen <b>http://localhost:8791</b> se kholiye, aur article dobara dijiye.');
+    log('<b>⚠ ARTICLE RECORD NAHI HUA:</b> <b>koi PR, koi stock record, koi finance entry, koi content pack NAHI bana</b>.' + (artErr ? ' <b>Asal wajah:</b> ' + artErr : ' Backend tak baat nahi pohanchi.') + ' Cloud se rabta band hai — internet check kar ke screen refresh karein, aur article dobara dijiye.');
     speak('Chairman, article record nahi hua. Backend band hai. Pehle laptop par Jarvis chalaiye.');
     busy = false; return;
   }
@@ -1729,7 +1729,7 @@ async function deskCancelStale(){
 function shortName(a){ a = String(a || ''); const m = [['Sorrel','Sorrel'],['Echo','Echo'],['ROMA','ROMA by Brenish'],['Roma','ROMA by Brenish'],['Saha','Saha'],['Rumi','Rumi'],['Norine','Norine'],['Afsanay','Afsanay']]; for (const pair of m) if (a.includes(pair[0])) return pair[1]; return a.split('\u2013')[0].trim(); }
 function connectBackend(quiet){
   if (!API_BASE && location.protocol.indexOf('http') !== 0) return;
-  fetch(API_BASE + '/api/status').then(r => r.json()).then(s => { BACKEND_LIVE = !!(s && s.n8n); if (!quiet && s && s.build !== EXPECTED_BUILD) log('<b>⚠ BRIDGE PURANI BUILD HAI:</b> chal rahi hai <b>' + (s.build || 'purani, bina number wali') + '</b> — screen ko chahiye <b>' + EXPECTED_BUILD + '</b>. Auto-PO jaisi nayi cheezein is bridge par NAHI chalengi. Kit mein <b>serve.js</b> badal kar <b>Start-Jarvis</b> dobara chalaiye.'); const ai = (s && s.ai) || {}; AI_WHISPER = !!ai.whisper; AI_BRAIN = !!ai.brain; AI_VOICE = !!ai.voice; if (!quiet) log('<b>Backend link:</b> ' + (BACKEND_LIVE ? 'CONNECTED — har order asal department engine ko bhi jayega' : 'bridge mila, lekin n8n engines band hain')); if (!quiet && (AI_WHISPER || AI_BRAIN || AI_VOICE)) log('<b>AI services:</b> ' + [AI_WHISPER ? 'Whisper (asal kaan)' : '', AI_BRAIN ? 'OpenAI brain' : '', AI_VOICE ? 'ElevenLabs voice' : ''].filter(Boolean).join(' · ') + ' — bridge ke zariye connected'); if (!quiet && s && s.build) log('<b>Bridge build:</b> ' + s.build + ' — yahi build is waqt chal rahi hai'); }).catch(() => { BACKEND_LIVE = false; if (!quiet) log('<b>Backend link:</b> BAND — yeh screen akeli hai. Koi hukum, article ya order yahan record NAHI hoga jab tak laptop par kit na chale aur screen localhost se na khule.'); });
+  fetch(API_BASE + '/api/status').then(r => r.json()).then(s => { BACKEND_LIVE = !!(s && s.n8n); if (!quiet && s && s.build !== EXPECTED_BUILD) log('<b>⚠ SCREEN PURANI BUILD HAI:</b> chal rahi hai <b>' + (s.build || 'purani, bina number wali') + '</b> — screen ko chahiye <b>' + EXPECTED_BUILD + '</b>. Auto-PO jaisi nayi cheezein is bridge par NAHI chalengi. Muse ko batain — screen ki build cloud se match nahi kar rahi.'); const ai = (s && s.ai) || {}; AI_WHISPER = !!ai.whisper; AI_BRAIN = !!ai.brain; AI_VOICE = !!ai.voice; if (!quiet) log('<b>Backend link:</b> ' + (BACKEND_LIVE ? 'CONNECTED — har order asal department engine ko bhi jayega' : 'cloud mila, lekin engines band hain')); if (!quiet && (AI_WHISPER || AI_BRAIN || AI_VOICE)) log('<b>AI services:</b> ' + [AI_WHISPER ? 'Whisper (asal kaan)' : '', AI_BRAIN ? 'OpenAI brain' : '', AI_VOICE ? 'ElevenLabs voice' : ''].filter(Boolean).join(' · ') + ' — cloud ke zariye connected'); if (!quiet && s && s.build) log('<b>Cloud build:</b> ' + s.build + ' — yahi build is waqt chal rahi hai'); }).catch(() => { BACKEND_LIVE = false; if (!quiet) log('<b>Backend link:</b> BAND — cloud se rabta nahi hua. Koi hukum, article ya order record NAHI hoga jab tak rabta na ho — internet check kar ke refresh karein.'); });
   fetch(API_BASE + '/api/registers').then(r => r.json()).then(j => {
     R('reg-orders').innerHTML = '<table><tr><th>Order</th><th>Article</th><th>Amount</th><th>Status</th></tr><tr><td colspan="4">No orders on record — the registers are fresh</td></tr></table>';
     R('reg-stock').innerHTML = '<table><tr><th>Article</th><th>On hand</th><th>Reserved</th></tr><tr><td colspan="3">No stock on record — the registers are fresh</td></tr></table>';
@@ -1749,7 +1749,7 @@ function connectBackend(quiet){
       R('reg-cod').innerHTML = '<table><tr><th>Order</th><th>COD</th><th>Courier</th><th>Status</th></tr>' + j.cod.map(x => '<tr><td><b>\u2026' + x.order_no.slice(-10) + '</b></td><td><b>' + fmt(+x.cod_amount) + '</b></td><td>' + x.courier + '</td><td>' + x.status.replace(/_/g, ' ') + '</td></tr>').join('') + '</table>';
     }
     DESK.purchases = j.purchases || []; DESK.grn = j.grn || []; DESK.cod = j.cod || []; DESK.links = j.invoice_links || []; DESK.stock = j.stock || []; DESK.orders = j.orders || []; renderDesk(); renderRisk(j);
-    if (!quiet) log('<b>Connected to the J.A.R.V.I.S. backend</b> \u2014 live trial registers loaded (orders, stock, COD)');
+    if (!quiet) log('<b>Connected to the J.A.R.V.I.S. backend</b> \u2014 live cloud registers loaded (orders, stock, COD)');
   }).catch(() => {});
   fetch(API_BASE + '/api/tasks').then(r => r.json()).then(j => { window.JARVIS_TASKS = j; renderTaskBoard(); if (!quiet && j && (j.open || j.overdue)) log('<b>CEO task desk (Fahad Iqbal):</b> ' + j.open + ' task(s) open' + (j.overdue ? ', <b>' + j.overdue + ' OVERDUE</b>' : '') + ' — har task pehle accept hota hai, phir saboot ke saath complete'); }).catch(() => {});
 }
