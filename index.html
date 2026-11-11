@@ -447,7 +447,8 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
 <div class="frow" style="flex:1"><label>PURCHASE QTY — TOTAL PCS IN THE BOX</label><input id="a_pqty" inputmode="numeric" placeholder="12"></div>
 <div class="frow" style="flex:1"><label>PURCHASE RATE PER PIECE (RS.)</label><input id="a_prate" inputmode="decimal" placeholder="2595"></div>
 </div>
-<div class="frow"><label>COLOURS IN THE BOX (OPTIONAL)</label><input id="a_colours" placeholder="Maroon, Teal, Mustard — khali chhor dein to photos se parhe jayenge"></div>
+<div class="frow"><label>SUPPLIER NAME — JIS SE MAAL AYEGA</label><input id="a_supplier" placeholder="Supplier ka naam — khali chhor dein to CEO follow-up mein khud mangega"></div>
+<div class="frow"><label>COLOURS IN THE BOX (OPTIONAL)</label><input id="a_colours" placeholder="Maroon 4, Teal 4, Mustard 4 — tadaad ke saath dein to GRN par auto-fill hoga; khali chhor dein to photos se parhe jayenge"></div>
 <div class="pmeta">Purchase details yahin de dein to <b>CEO khud PO bana dega</b> — darmiyan mein koi form nahi ayega, aur Finance + Stores mein record khud ho jayega. Khali chhor dein to rate/quantity Desk ke form par li jayegi.</div>
 <div class="pmeta" id="a_err" style="color:#ff9d9d"></div>
 <div class="fbtns"><button class="pclose" onclick="submitArticle()">GIVE IT TO THE CEO — ARRANGE THE UPLOAD</button><button class="pclose" style="background:#22355e;color:#c7d5ef" onclick="closeAPanel()">CANCEL</button></div>
@@ -457,6 +458,52 @@ body:not(.night) .cmd{background:rgba(255,255,255,.82);backdrop-filter:blur(14px
 <div id="panelbody"></div>
 <button class="pclose" onclick="closePanel()">CLOSE — BACK TO THE OFFICE</button>
 </div></div>
+<script>
+/* JARVIS CLOUD SHIM (build cloud-2026-11-10.1) — screen ko laptop bridge ki
+   jagah mfh n8n Cloud webhooks se jorta hai. Jo hissa cloud mein abhi nahi
+   bana, us ka saaf inkaar — screen kabhi hang nahi hoti, jhoot nahi bolti. */
+(function(){
+  window.JARVIS_API = 'https://mfh.app.n8n.cloud';
+  var ORIG_FETCH = window.fetch.bind(window);
+  var CLOUD = 'https://mfh.app.n8n.cloud/webhook/';
+  function key(){ try { var k = localStorage.getItem('jarvis_cloud_key'); if (!k) { k = window.prompt('Jarvis Cloud key darj karein (sirf pehli baar):') || ''; if (k) localStorage.setItem('jarvis_cloud_key', k); } return k; } catch(e){ return ''; } }
+  function jresp(obj, status){ return Promise.resolve(new Response(JSON.stringify(obj), { status: status || 200, headers: { 'Content-Type': 'application/json' } })); }
+  function call(path, method, bodyObj){ var h = { 'x-jarvis-key': key() }; var o = { method: method, headers: h }; if (bodyObj !== undefined) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(bodyObj); } return ORIG_FETCH(CLOUD + path, o); }
+  function parseBody(opts){ try { return (opts && opts.body) ? JSON.parse(opts.body) : {}; } catch(e){ return {}; } }
+  window.fetch = function(input, opts){
+    var url = (typeof input === 'string') ? input : ((input && input.url) || '');
+    var m = url.match(/\/api\/([a-z0-9\-\/]+)(\?.*)?$/i);
+    if (!m) return ORIG_FETCH(input, opts);
+    var path = m[1], qs = m[2] || '', method = ((opts && opts.method) || 'GET').toUpperCase();
+    var body = parseBody(opts);
+    if (path === 'registers' && method === 'GET') return call('jarvis-api-registers', 'GET');
+    if (path === 'status' && method === 'GET') return call('jarvis-api-status', 'GET').then(function(r){ return r.json(); }).then(function(s){ return jresp({ ok: true, n8n: true, cloud: true, build: (s && s.build) || 'cloud-2026-11-10.1', ai: { whisper: false, brain: !!(s && s.ai && s.ai.brain), voice: !!(s && s.ai && s.ai.voice) } }); }).catch(function(){ return jresp({ ok: false, n8n: false }, 502); });
+    if (path.indexOf('kpi') === 0 && method === 'GET') return call('jarvis-api-kpi' + qs, 'GET');
+    if (path === 'tasks' && method === 'GET') return call('jarvis-api-registers', 'GET').then(function(r){ return r.json(); }).then(function(j){ var t = (j && j.tasks) || []; var today = new Date().toISOString().slice(0,10); var open = t.filter(function(x){ return x.status === 'ASSIGNED' || x.status === 'ACCEPTED'; }); var od = open.filter(function(x){ return x.due && x.due < today; }).length; return jresp({ tasks: t, open: open.length, overdue: od }); }).catch(function(){ return jresp({ tasks: [], open: 0, overdue: 0 }); });
+    if (path === 'task' && method === 'POST') return call('jarvis-api-task', 'POST', body).then(function(r){ return r.json(); }).then(function(j){ return jresp({ ok: !!(j && j.ok), task: { task_id: (j && j.task_id) || '' }, error: (j && j.error) || '' }); }).catch(function(){ return jresp({ ok: false, task: { task_id: '' } }); });
+    if (path === 'task/accept' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'ACCEPTED' });
+    if (path === 'task/complete' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'DONE', evidence: body.evidence || '' });
+    if (path === 'task/cancel' && method === 'POST') return call('jarvis-api-task-status', 'POST', { task_id: body.task_id, status: 'CANCELLED' });
+    if (path.indexOf('run/') === 0 && method === 'POST') return call('jarvis-' + path.slice(4), 'POST', body);
+    if (path === 'brain' && method === 'POST') return call('jarvis-api-brain', 'POST', body);
+    if (path === 'article' && method === 'POST') { var b2 = { meta: body.meta || {}, photos: ((body.photos || []).map(function(p){ return { name: (p && p.name) || 'photo' }; })) }; return call('jarvis-api-article', 'POST', b2); }
+    if (path === 'purchase-request/approve' && method === 'POST') return call('jarvis-api-pr-approve', 'POST', body);
+    if (path === 'grn' && method === 'POST') return call('jarvis-api-grn', 'POST', body);
+    if (path === 'invoice-match' && method === 'POST') return call('jarvis-api-invoice-match', 'POST', body);
+    if (path === 'cod/settle' && method === 'POST') return call('jarvis-api-cod-settle', 'POST', body);
+    if (path === 'events' && method === 'GET') return jresp({ ok: true, events: [] });
+    if (path === 'command' && method === 'POST') return jresp({ ok: true });
+    if (path === 'auth/state' && method === 'GET') return jresp({ setup_needed: false, authed: true, role: 'admin', email: 'chairman' });
+    if ((path === 'auth/login' || path === 'auth/setup') && method === 'POST') return jresp({ ok: true, role: 'admin' });
+    if (path === 'auth/invite') return jresp({ ok: false, error: 'Cloud screen mein invite abhi nahi' });
+    if (path === 'speak') return jresp({ ok: false, error: 'cloud voice abhi nahi — browser voice chalegi' }, 501);
+    if (path === 'transcribe') return jresp({ ok: false, error: 'cloud transcribe abhi nahi — browser wala jumla chalega' });
+    if (path === 'publish-article' || path === 'publish-catalogue') return jresp({ ok: false, error: 'Publish abhi cloud mein nahi bana — pehle WordPress credential lagegi' });
+    return jresp({ ok: false, error: 'Ye hissa cloud mein abhi nahi bana' });
+  };
+})();
+
+</script>
 <script>
 const TEAM = { ceo:'Fahad Iqbal', chairman:'Farhan Haider', founder:'Sana Farhan', sales:'Ahmed Raza', care:'Fatima Noor', inv:'Bilal Hussain', log:'Usman Ali', fin:'Imran Sheikh', merch:'Ayesha Khan', mkt:'Zainab Tariq', proc:'Hassan Javed', cont:'Mahnoor Aslam', audit:'Shahid Mehmood' };
 const DATA = {
@@ -630,7 +677,7 @@ function resolveApproval(id, ok){
    invoice match, COD settle), wired to the bridge's tested gates. No new logic:
    every button calls the same endpoint the batteries proved. If the backend is
    unreachable the action REFUSES plainly — nothing is ever faked here. ===== */
-let DESK = { purchases: [], grn: [], cod: [], links: [], stock: [] };
+let DESK = { purchases: [], grn: [], cod: [], links: [], stock: [], orders: [] };
 function dPrNo(row){ const m = String(row.notes || '').match(/PR-\d+/); return m ? m[0] : ''; }
 function dPoNo(row){ const m = String(row.notes || '').match(/PO-\d+/); return m ? m[0] : ''; }
 function dCode(row){ const m = String(row.article || '').match(/HBZ-\d+/); return m ? m[0] : ''; }
@@ -655,14 +702,14 @@ function renderDesk(){
   const prs = DESK.purchases.filter(r => String(r.payment_status || '').indexOf('PR RAISED') === 0);
   const pos = DESK.purchases.filter(r => String(r.payment_status || '').indexOf('PO RAISED') === 0);
   for (const r of prs){ const code = dCode(r);
-    h += '<div class="exc-item"><b>' + dPrNo(r) + ' — ' + r.article + '</b><div class="why">Procurement khareed ke liye tayyar hai — <b>Chairman ya CEO is form mein quantity aur purchase rate dein</b>, tab PO banega aur Finance + Stores mein record hoga. Supplier: ' + r.supplier + ' · Rate per piece <input type="number" id="pr-rate-' + code + '" placeholder="Rs."> · Qty <input type="number" id="pr-qty-' + code + '" placeholder="pcs"></div><div class="btns"><button class="okb" onclick="deskApprovePR(\'' + code + '\')">APPROVE — PO BANAO</button></div></div>';
+    h += '<div class="exc-item"><b>' + dPrNo(r) + ' — ' + r.article + '</b><div class="why">Procurement khareed ke liye tayyar hai — <b>Chairman ya CEO is form mein quantity aur purchase rate dein</b>, tab PO banega aur Finance + Stores mein record hoga. Supplier: ' + r.supplier + ' · Rate per piece <input type="number" id="pr-rate-' + code + '" placeholder="Rs."> · Qty <input type="number" id="pr-qty-' + code + '" placeholder="pcs"> · Colour-wise qty <input type="text" id="pr-col-' + code + '" placeholder="Maroon 4, Teal 4, Mustard 4 (optional — GRN par auto-fill hoga)"></div><div class="btns"><button class="okb" onclick="deskApprovePR(\'' + code + '\')">APPROVE — PO BANAO</button></div></div>';
   }
-  for (const r of pos){ const po = dPoNo(r); const g = grnPos[po];
+  for (const r of pos){ const po = dPoNo(r); const g = grnPos[po]; const cm = String(r.notes || '').match(/colours \[([^\]]+)\]/); const poCol = cm ? cm[1] : ''; const poRate = +r.cost_per_piece || 0;
     if (!g){
-      h += '<div class="exc-item"><b>' + po + ' — ' + r.article + '</b><div class="why">PO total Rs. ' + (+r.total_cost).toLocaleString('en-US') + ' · Maal anay par — Received <input type="number" id="grn-rec-' + po + '" value="' + (r.qty || '') + '"> · Accepted <input type="number" id="grn-acc-' + po + '" value="' + (r.qty || '') + '"> · Rejected <input type="number" id="grn-rej-' + po + '" value="0"> · Supplier invoice no <input type="text" id="grn-inv-' + po + '" placeholder="(invoice saath aya to)"> · Colour-wise qty (ek article kai rangon mein ho to) <input type="text" id="grn-col-' + po + '" placeholder="Maroon 4, Teal 4, Mustard 4"></div><div class="btns"><button class="okb" onclick="deskGRN(\'' + po + '\')">GRN — STOCK IN (STORES)</button></div></div>';
+      h += '<div class="exc-item"><b>' + po + ' — ' + r.article + '</b><div class="why">PO total Rs. ' + (+r.total_cost).toLocaleString('en-US') + ' · Maal anay par — Received <input type="number" id="grn-rec-' + po + '" value="' + (r.qty || '') + '"> · Accepted <input type="number" id="grn-acc-' + po + '" value="' + (r.qty || '') + '" oninput="grnAmtCalc(\'' + po + '\', ' + poRate + ')"> · Rejected <input type="number" id="grn-rej-' + po + '" value="0"> · Supplier invoice no <input type="text" id="grn-inv-' + po + '" placeholder="(invoice saath aya to)"> · Amount Rs. <input type="number" id="grn-amt-' + po + '" value="' + (r.total_cost || '') + '"> · Colour-wise qty (PO se auto-fill — theek kar sakte hain) <input type="text" id="grn-col-' + po + '" value="' + poCol + '" placeholder="Maroon 4, Teal 4, Mustard 4"></div><div class="btns"><button class="okb" onclick="deskGRN(\'' + po + '\')">GRN — STOCK IN (STORES)</button></div></div>';
     } else if (String(r.payment_status || '').indexOf('PAYMENT AUTHORISED') < 0){
       const payable = (+g.qty_accepted) * (+r.cost_per_piece);
-      h += '<div class="exc-item"><b>' + po + ' — invoice match</b><div class="why">GRN accepted ' + g.qty_accepted + ' × rate Rs. ' + (+r.cost_per_piece).toLocaleString('en-US') + ' = payable Rs. ' + payable.toLocaleString('en-US') + ' · Supplier invoice no <input type="text" id="inv-no-' + po + '" placeholder="INV-..."> · Invoice qty <input type="number" id="inv-qty-' + po + '"> · Invoice amount <input type="number" id="inv-amt-' + po + '"></div><div class="btns"><button class="okb" onclick="deskMatch(\'' + po + '\')">3-WAY MATCH CHECK</button></div></div>';
+      h += '<div class="exc-item"><b>' + po + ' — invoice match</b><div class="why">GRN accepted ' + g.qty_accepted + ' × rate Rs. ' + (+r.cost_per_piece).toLocaleString('en-US') + ' = payable Rs. ' + payable.toLocaleString('en-US') + ' · Supplier invoice no <input type="text" id="inv-no-' + po + '" placeholder="INV-..."> · Invoice qty <input type="number" id="inv-qty-' + po + '" value="' + (g.qty_accepted || '') + '"> · Invoice amount <input type="number" id="inv-amt-' + po + '" value="' + (payable || '') + '"></div><div class="why">Qty aur amount PO/GRN se auto-bharay hain — supplier ke asal bill se farq ho to yahan badal dein, phir match check karein.</div><div class="btns"><button class="okb" onclick="deskMatch(\'' + po + '\')">3-WAY MATCH CHECK</button></div></div>';
     }
   }
   for (const c of DESK.cod){ if (String(c.status || '').indexOf('REMITTED') === 0) continue;
@@ -680,19 +727,23 @@ function renderDesk(){
     }
     h += '</div>';
   }
+  for (const o of (DESK.orders || []).slice(-8).reverse()) {
+    h += '<div class="exc-item"><b>ORDER ' + o.order_no + ' — ' + o.customer_name + '</b><div class="why">' + o.article + ' × ' + o.qty + ' · Rs. ' + (+o.amount || 0).toLocaleString('en-US') + (o.delivery_charges ? ' + delivery Rs. ' + (+o.delivery_charges).toLocaleString('en-US') : '') + ' · ' + o.payment_mode + ' · ' + o.status + '</div><div class="btns"><button class="okb" onclick="window.open(\'/api/invoice?order_no=' + encodeURIComponent(o.order_no) + '\',\'_blank\')">INVOICE — DOT PRINTER (80MM)</button></div></div>';
+  }
   w.innerHTML = h || '<div class="empty">Desk saaf hai — koi pending action nahi</div>';
 }
 async function deskApprovePR(code){
-  const res = await deskPost('/api/purchase-request/approve', { item_code: code, rate: R('pr-rate-' + code).value.trim(), qty: R('pr-qty-' + code).value.trim() });
+  const res = await deskPost('/api/purchase-request/approve', { item_code: code, rate: R('pr-rate-' + code).value.trim(), qty: R('pr-qty-' + code).value.trim(), colours: (R('pr-col-' + code) ? R('pr-col-' + code).value.trim() : '') });
   if (!res) return;
   if (res.j && res.j.ok) log('<b>Desk · PR APPROVED:</b> ' + res.j.po_no + ' ban gaya — ' + res.j.qty + ' pcs × Rs. ' + (+res.j.rate).toLocaleString('en-US') + ' = Rs. ' + (+res.j.total).toLocaleString('en-US') + ' (' + res.j.supplier + ')' + (res.j.recorded ? '<br><b>Recorded:</b> Finance — ' + res.j.recorded.finance + ' · Stores — ' + res.j.recorded.stores : ''));
   else log('<b>Desk · PR APPROVE RUKA:</b> ' + ((res.j && (res.j.reason || res.j.error)) || 'unknown'));
   connectBackend(true);
 }
+function grnAmtCalc(po, rate){ const a = parseInt(R('grn-acc-' + po).value, 10); const amt = R('grn-amt-' + po); if (amt && !isNaN(a)) amt.value = a * rate; }
 async function deskGRN(po){
-  const res = await deskPost('/api/grn', { po_no: po, qty_received: R('grn-rec-' + po).value.trim(), qty_accepted: R('grn-acc-' + po).value.trim(), qty_rejected: R('grn-rej-' + po).value.trim(), invoice_no: (R('grn-inv-' + po) ? R('grn-inv-' + po).value.trim() : ''), colour_breakdown: (R('grn-col-' + po) ? R('grn-col-' + po).value.trim() : '') });
+  const res = await deskPost('/api/grn', { po_no: po, qty_received: R('grn-rec-' + po).value.trim(), qty_accepted: R('grn-acc-' + po).value.trim(), qty_rejected: R('grn-rej-' + po).value.trim(), invoice_no: (R('grn-inv-' + po) ? R('grn-inv-' + po).value.trim() : ''), colour_breakdown: (R('grn-col-' + po) ? R('grn-col-' + po).value.trim() : ''), amount: (R('grn-amt-' + po) ? R('grn-amt-' + po).value.trim() : '') });
   if (!res) return;
-  if (res.j && res.j.ok) log('<b>Desk · GRN:</b> ' + res.j.grn_no + ' — ' + res.j.item_code + ' stock-in ho gaya: accepted ' + res.j.accepted + ' (on hand ab ' + res.j.stock_on_hand + '), rejected ' + res.j.rejected + (res.j.colour_stock ? '<br><b>Stores — colour-wise record:</b> ' + res.j.colour_stock.map(c => c.colour + ' ' + c.qty + ' pcs').join(' · ') : ''));
+  if (res.j && res.j.ok) log('<b>Desk · GRN:</b> ' + res.j.grn_no + ' — ' + res.j.item_code + ' stock-in ho gaya: accepted ' + res.j.accepted + ' (on hand ab ' + res.j.stock_on_hand + '), rejected ' + res.j.rejected + (res.j.amount != null ? ' · Amount Rs. ' + (+res.j.amount).toLocaleString('en-US') + (res.j.colour_auto ? ' · colours PO se auto-fill huay' : '') : '') + (res.j.colour_stock ? '<br><b>Stores — colour-wise record:</b> ' + res.j.colour_stock.map(c => c.colour + ' ' + c.qty + ' pcs').join(' · ') : ''));
   else log('<b>Desk · GRN RUKA:</b> ' + ((res.j && (res.j.reason || res.j.error)) || 'unknown'));
   connectBackend(true);
 }
@@ -730,7 +781,11 @@ let VOICE = true;
 /* Voice state — ALEXA MODE (Chairman rule 2026-11-02): no tap to talk; the ear opens by itself on connect. */
 let LISTEN = true, SPEAKING = false, REC_ON = false, PERM_WAIT = false, rec = null, recLang = 'ur-PK';
 function speak(t){ if (!VOICE) return; if (typeof AI_VOICE !== 'undefined' && AI_VOICE){ speakViaBridge(t); return; } speakBrowser(t); }
-function speakBrowser(t){ if (!('speechSynthesis' in window)){ SPEAKING = false; startListening(); return; } try{ speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); if (/[؀-ۿ]/.test(t)) u.lang = recLang.indexOf('ar') === 0 ? 'ar-SA' : 'ur-PK'; else if (recLang !== 'ur-PK') u.lang = recLang; u.rate = 1.02; SPEAKING = true; if (rec && REC_ON){ try { rec.stop(); } catch(e){} } u.onend = () => { SPEAKING = false; startListening(); }; u.onerror = () => { SPEAKING = false; startListening(); }; speechSynthesis.speak(u); }catch(e){ SPEAKING = false; } }
+function speakBrowser(t){ if (!('speechSynthesis' in window)){ SPEAKING = false; startListening(); return; } try{ speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); if (/[؀-ۿ]/.test(t)) u.lang = recLang.indexOf('ar') === 0 ? 'ar-SA' : 'ur-PK'; else if (recLang !== 'ur-PK') u.lang = recLang; try { const vs = speechSynthesis.getVoices() || []; let v = null; if (u.lang === 'ur-PK') v = vs.find(x => /asad/i.test(x.name)) || vs.find(x => (x.lang || '').replace('_', '-') === 'ur-PK'); else if (u.lang) v = vs.find(x => (x.lang || '').replace('_', '-') === u.lang) || vs.find(x => (x.lang || '').indexOf(u.lang.slice(0, 2)) === 0); if (v) u.voice = v; } catch(e){} u.rate = 1.02; SPEAKING = true; if (rec && REC_ON){ try { rec.stop(); } catch(e){} } u.onend = () => { SPEAKING = false; startListening(); }; u.onerror = () => { SPEAKING = false; startListening(); }; speechSynthesis.speak(u); }catch(e){ SPEAKING = false; } }
+/* Voice list warm-up (build .6): browsers load voices async — cache them early
+   so the Asad (ur-PK, male) default is actually available at first speech.
+   Chairman's rule 2026-11-09: Jarvis ki awaz male hogi, female nahi. */
+if ('speechSynthesis' in window) { try { speechSynthesis.getVoices(); speechSynthesis.addEventListener('voiceschanged', () => { try { speechSynthesis.getVoices(); } catch(e){} }); } catch(e){} }
 let AI_AUDIO = null;
 async function speakViaBridge(t){
   SPEAKING = true; if (rec && REC_ON){ try { rec.stop(); } catch(e){} }
@@ -909,7 +964,7 @@ async function submitArticle(){
   const files = Array.from(R('a_photos').files || []);
   if (!files.length){ R('a_err').textContent = 'Choose the photos first — the Chairman gives only photos and prices; everything else is the work of the office.'; return; }
   R('a_err').textContent = '';
-  const meta = { sale: R('a_sale').value.trim(), regular: R('a_reg').value.trim(), pqty: R('a_pqty').value.trim(), prate: R('a_prate').value.trim(), colours: R('a_colours').value.trim() };
+  const meta = { sale: R('a_sale').value.trim(), regular: R('a_reg').value.trim(), pqty: R('a_pqty').value.trim(), prate: R('a_prate').value.trim(), colours: R('a_colours').value.trim(), supplier: R('a_supplier').value.trim() };
   closeAPanel();
   busy = true;
   log('<b>Chairman:</b> a new article has arrived — <b>' + files.length + ' photo(s)</b>' + (meta.sale ? ' and the price from the Chairman (Sale Rs. ' + Number(meta.sale).toLocaleString('en-US') + ')' : ', and the price will be given by the Chairman at approval') + (meta.pqty && meta.prate ? ' · purchase details bhi Chairman ne yahin de diye: <b>' + meta.pqty + ' pcs × Rs. ' + Number(meta.prate).toLocaleString('en-US') + '</b> — CEO khud PO banayega' : '') + '. This is an instruction to the CEO: buy this article, and list it');
@@ -923,7 +978,7 @@ async function submitArticle(){
     const unconv = photos.filter(pp => !pp.webp_bytes).map(pp => pp.name);
     log('<b>Photos:</b> ' + convN + '/' + photos.length + ' WebP mein convert huin — <b>' + (tot0 / 1048576).toFixed(1) + ' MB &#8594; ' + (tot1 / 1048576).toFixed(1) + ' MB</b>' + (unconv.length ? ' · yeh asal format mein gayi (convert nahi huin): ' + unconv.join(', ') : ''));
     if (photos.some(pp => /\.hei[cf]$/i.test(pp.name || ''))) log('<b>Note:</b> HEIC wali photo Chrome parh nahi sakta — woh asal format mein gayi hai. Phone se JPG share karein to woh bhi WebP banegi.');
-    const r = await fetch(API_BASE + '/api/article', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meta: { sale: meta.sale, regular: meta.regular, purchase_qty: meta.pqty, purchase_rate: meta.prate, colours: meta.colours }, photos }) });
+    const r = await fetch(API_BASE + '/api/article', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meta: { sale: meta.sale, regular: meta.regular, purchase_qty: meta.pqty, purchase_rate: meta.prate, colours: meta.colours, supplier: meta.supplier }, photos }) });
     if (r.ok){ const j = await r.json(); saved = j.saved; window.LAST_ART = j; }
     else { artErr = 'bridge ka jawab: HTTP ' + r.status + ' — ' + String(await r.text().catch(() => '')).slice(0, 220); }
   } catch(e){ artErr = String((e && e.message) || e); }
@@ -972,7 +1027,7 @@ async function submitArticle(){
     + '<div class="prow"><span>Photo analysis</span><b>' + anaTxt + '</b></div>'
     + '<h4>PURCHASE — PROCUREMENT</h4>'
     + '<div class="prow"><span>Instruction</span><b>CEO to ' + TEAM.proc + ' — buy this article from the supplier</b></div>'
-    + '<div class="prow"><span>Purchase</span><b>' + ((window.LAST_ART && window.LAST_ART.po) ? (window.LAST_ART.po.po_no + ' ban gaya — ' + window.LAST_ART.po.qty + ' pcs × Rs. ' + (+window.LAST_ART.po.rate).toLocaleString('en-US') + ' = Rs. ' + (+window.LAST_ART.po.total).toLocaleString('en-US') + ' — Chairman ki di hui details par CEO ne khud banaya · Finance + Stores mein record ho gaya') : ('Purchase request ' + ((window.LAST_ART && window.LAST_ART.pr_no) || 'PR') + ' raised — quantity + purchase rate ka form Desk par Chairman/CEO ke liye khula hai; PO bante hi Finance aur Stores dono registers mein record hoga')) + '</b></div>'
+    + '<div class="prow"><span>Purchase</span><b>' + ((window.LAST_ART && window.LAST_ART.po) ? (window.LAST_ART.po.po_no + ' ban gaya — ' + window.LAST_ART.po.qty + ' pcs × Rs. ' + (+window.LAST_ART.po.rate).toLocaleString('en-US') + ' = Rs. ' + (+window.LAST_ART.po.total).toLocaleString('en-US') + ' — Chairman ki di hui details par CEO ne khud banaya · Finance + Stores mein record ho gaya') : ('Purchase request ' + ((window.LAST_ART && window.LAST_ART.pr_no) || 'PR') + ' raised — quantity + purchase rate ka form Desk par Chairman/CEO ke liye khula hai; PO bante hi Finance aur Stores dono registers mein record hoga' + ((window.LAST_ART && window.LAST_ART.missing && window.LAST_ART.missing.length) ? ' · <span style="color:#ffb86b">BAQI HAI: ' + window.LAST_ART.missing.join(' · ') + '</span> — CEO ko follow-up task mil gaya hai, woh mukammal karwayega; Finance ki entry PR par darj hai, committed amount PO bantay hi lagega' : ''))) + '</b></div>'
     + '<h4>STORES</h4>'
     + '<div class="prow"><span>Goods arrival</span><b>Awaited — delivery is recorded when the maal arrives (GRN by Stores)</b></div>'
     + '<div class="prow"><span>Stock-in</span><b>On arrival, by ' + TEAM.inv + ' (Stores) against the GRN — accepted quantity only</b></div>'
@@ -984,7 +1039,30 @@ async function submitArticle(){
     + '<div class="pfoot">Yeh panel bridge ki asal pipeline report se bana hai — har line wohi hai jo department engines ne asal mein jawab diya. Poori report article ke inbox folder ki pipeline-report.json mein mehfooz hai.</div>');
   work('chairman', 0);
   setTask('merch', 'The new article pack is presented — the upload follows the word of the Chairman');
-  addApproval('article-' + Date.now(), 'New article pack — approve the upload?', 'Records: ' + (((window.LAST_ART || {}).records) || []).join(' · ') + ' — ' + (packReady ? 'listing + content drafts asal mein ready hain.' : 'kuch drafts pending hain; panel mein wajahain likhi hain.') + ' Stores-in happens when the goods arrive. The office places the website product as a DRAFT for your LIVE check — APPROVE only after you have watched the live draft; an article not watched live is not approved. REJECT = the pack goes back to Merchandising.', function(){ setTask('merch', 'Chairman APPROVED the pack — the office is creating the website DRAFT'); log('<b>Merchandising:</b> approval received — the website product goes in as a DRAFT for your review'); }, function(){ setTask('merch', 'Chairman REJECTED the pack — Ayesha is revising it'); log('<b>Merchandising:</b> the pack goes back for revision'); });
+  addApproval('article-' + Date.now(), 'New article pack — approve the upload?', 'Records: ' + (((window.LAST_ART || {}).records) || []).join(' · ') + ' — ' + (packReady ? 'listing + content drafts asal mein ready hain.' : 'kuch drafts pending hain; panel mein wajahain likhi hain.') + ' Stores-in happens when the goods arrive. The office places the website product as a DRAFT for your LIVE check — APPROVE only after you have watched the live draft; an article not watched live is not approved. REJECT = the pack goes back to Merchandising.', async function(){
+    setTask('merch', 'Chairman APPROVED the pack — the office is placing the website DRAFT');
+    const code = (window.LAST_ART || {}).item_code || '';
+    log('<b>Merchandising:</b> approval received — website DRAFT asal mein ban raha hai…');
+    const r = code ? await deskPost('/api/publish-article', { item_code: code, mode: 'draft' }) : null;
+    if (r && r.j && r.j.ok){
+      log('<b>Merchandising:</b> website DRAFT ban gaya — product id ' + r.j.product_id + (r.j.photos ? ' · ' + r.j.photos : '') + '. Draft: ' + (r.j.url || '') + ' — pehle isay LIVE dekhiye; live-watch ke baghair LIVE nahi hoga.');
+      setTask('merch', 'Website DRAFT ready hai — Chairman ki live-watch baqi hai');
+      addApproval('live-' + Date.now(), 'Draft live dekha? Ab website par LIVE kar dun?', 'Draft: ' + (r.j.url || '') + ' — LIVE karne se article herbazar.pk par public ho jayega, aur WhatsApp catalogue mein bhi bheja jayega (agar WhatsApp token load ho).', async function(){
+        const lr = await deskPost('/api/publish-article', { item_code: code, mode: 'live' });
+        if (lr && lr.j && lr.j.ok){
+          log('<b>Merchandising:</b> article website par LIVE ho gaya — ' + (lr.j.url || ''));
+          setTask('merch', 'Article website par LIVE hai');
+          const cr = await deskPost('/api/publish-catalogue', { item_code: code });
+          if (cr && cr.j && cr.j.ok) log('<b>Merchandising:</b> WhatsApp catalogue mein bhi article chala gaya.');
+          else log('<b>Merchandising:</b> WhatsApp catalogue upload NAHI hua — ' + ((cr && cr.j && cr.j.detail) || 'backend jawab nahi aya') + ' Website wala hissa LIVE hai.');
+        } else log('<b>Merchandising:</b> LIVE NAHI hua — ' + ((lr && lr.j && lr.j.detail) || 'backend jawab nahi aya'));
+      }, function(){ log('<b>Merchandising:</b> LIVE rok diya gaya — article DRAFT hi rahega.'); });
+    } else {
+      log('<b>Merchandising:</b> website DRAFT NAHI bana — ' + ((r && r.j && r.j.detail) || 'backend tak baat nahi pohanchi') + ' Pack ready hai, lekin upload asal mein NAHI hua.');
+      setTask('merch', 'Website draft nahi bana — wajah upar log mein hai');
+    }
+  }, function(){ setTask('merch', 'Chairman REJECTED the pack — Ayesha is revising it'); log('<b>Merchandising:</b> the pack goes back for revision'); });
+  connectBackend(true);
   busy = false;
 }
 function toggleTheme(){ const d = document.body.classList.toggle('night'); R('themebtn').textContent = d ? 'LOOK: LIGHT' : 'LOOK: FULL NIGHT'; log(d ? '<b>Full Night look</b> — the whole office in night colours' : '<b>Light look</b> — light background, dark offices'); }
@@ -1069,8 +1147,8 @@ async function regSnapshot(){
 }
 function snapLine(dept, rj){
   if (!rj) return 'register parh nahi saka — backend se jawab nahi aya; kuch claim nahi kiya jata';
-  if (dept === 'inv') { const st = rj.stock || []; return st.length ? st.map(x => (x.article || x.sku) + ' — on hand ' + x.stock_on_hand + ', reserved ' + x.stock_out_reserved).join(' · ') : 'stock register khaali hai — koi article record nahi'; }
-  if (dept === 'fin') { const pr = (rj.purchases || []).filter(x => String(x.payment_status || '').includes('PR RAISED')).length; const po = (rj.purchases || []).filter(x => String(x.payment_status || '').includes('PO RAISED')).length; return 'pending PR: ' + pr + ' · open PO: ' + po + ' · COD rows: ' + (rj.cod || []).length; }
+  if (dept === 'inv') { const st = rj.stock || []; return st.length ? st.map(x => (x.article || x.sku) + ' — on hand ' + ((x.stock_on_hand === '' || x.stock_on_hand == null) ? 'maloom nahi (website count publish nahi karti)' : x.stock_on_hand) + ', reserved ' + (x.stock_out_reserved === '' || x.stock_out_reserved == null ? 0 : x.stock_out_reserved)).join(' · ') : 'stock register khaali hai — koi article record nahi'; }
+  if (dept === 'fin') { const pur = rj.purchases || []; const links = rj.invoice_links || []; const fmt = n => 'Rs. ' + Number(n || 0).toLocaleString('en-US'); const poOf = x => (String(x.notes || '').match(/PO-\d+/) || [''])[0]; const payables = pur.filter(x => /MATCHED/.test(String(x.payment_status || '')) && /AUTHORISED/.test(String(x.payment_status || '')) && !/PAID/.test(String(x.payment_status || ''))); const lines = []; let total = 0; payables.forEach(x => { const po = poOf(x); const lk = links.find(l => l.po_no === po); const amt = lk && lk.invoice_amount ? Number(lk.invoice_amount) : (Number(x.qty || 0) * Number(x.cost_per_piece || 0)); total += amt; lines.push('PAYABLE: ' + (x.supplier || '') + ' — ' + po + (lk && lk.supplier_invoice_no ? ' · invoice ' + lk.supplier_invoice_no : '') + ' — ' + fmt(amt) + ' (3-way match ho chuka — payment baqi)'); }); links.filter(l => /EXCEPTION/.test(String(l.match_status || ''))).forEach(l => lines.push('HELD invoice: ' + (l.supplier || '') + ' — ' + (l.po_no || '') + ' — ' + fmt(l.invoice_amount) + ' (mismatch — payment ruka hua)')); pur.filter(x => /PO-\d+ issued/.test(String(x.notes || '')) && !links.some(l => l.po_no === poOf(x))).forEach(x => lines.push('PO issued, invoice abhi nahi aya: ' + (x.supplier || '') + ' — ' + poOf(x) + ' — ' + fmt(Number(x.qty || 0) * Number(x.cost_per_piece || 0)))); if (!lines.length) lines.push('koi payable baqi nahi — na authorised-unpaid invoice, na held invoice, na aisa PO jis ka invoice baqi ho'); const pr = pur.filter(x => String(x.payment_status || '').includes('PR RAISED')).length; return lines.join(' · ') + ' || TOTAL PAYABLE: ' + fmt(total) + ' · pending PR: ' + pr + ' · COD rows: ' + (rj.cod || []).length; }
   if (dept === 'sales') { const o = rj.orders || []; return o.length ? 'orders on record: ' + o.length + ' · latest: ' + (o[o.length - 1].order_no || '') + ' (' + (o[o.length - 1].status || '') + ')' : 'koi order record nahi hai'; }
   return 'registers: orders ' + (rj.orders || []).length + ' · stock rows ' + (rj.stock || []).length + ' · purchases ' + (rj.purchases || []).length + ' · pending PR ' + (rj.purchases || []).filter(x => String(x.payment_status || '').includes('PR RAISED')).length;
 }
@@ -1297,7 +1375,7 @@ async function runCommand(raw){
         await orbGo('inv'); work('inv', 1); await sleep(1200); work('inv', 0);
         await orbGo('merch'); work('merch', 1); await sleep(1200); work('merch', 0);
         await orbGo('hub'); hideOrb();
-        await reportBack('<b>' + TEAM.inv + ' (Inventory), asked directly:</b> ' + art.name + ' — ' + art.on + ' pieces on hand at Ghar' + (art.res ? ', ' + art.res + ' reserved for the confirmed order' : '') + (art.on <= art.alert ? ' — this article is on ALERT and its reorder is open with Procurement' : '') + '. <b>' + TEAM.merch + ' (Merchandising):</b> its listing stands matched on the website and the WhatsApp catalogue');
+        await reportBack('<b>' + TEAM.inv + ' (Inventory), asked directly:</b> ' + art.name + ' — ' + (art.on == null ? 'is article ka count abhi maloom nahi — website counts publish nahi karti; asal ginti Ghar mein Stores se confirm hogi' : art.on + ' pieces on hand at Ghar' + (art.res ? ', ' + art.res + ' reserved for the confirmed order' : '') + (art.on <= art.alert ? ' — this article is on ALERT and its reorder is open with Procurement' : '')) + '. <b>' + TEAM.merch + ' (Merchandising):</b> its listing stands matched on the website and the WhatsApp catalogue');
         return fin();
       }
       const hs = holdersList();
@@ -1322,7 +1400,7 @@ async function runCommand(raw){
     if (/^(hi|hello|hey|salam|assalam|aoa)\b/.test(q) || /(good )?(morning|afternoon|evening)/.test(q)){
       say(greetingWord() + ', Chairman. I am here, and the office is running. Shall I brief you on the office, or is there work to assign?'); return fin();
     }
-    if (q.includes('how are you') || q.includes('kaise ho') || q.includes('kaisay ho')){
+    if (q.includes('how are you') || /^(have|how)( are| r)? you\b/.test(q) || q.includes('kaise ho') || q.includes('kaisay ho') || q.includes('kese ho') || q.includes('kesay ho')){
       say('I am well, Chairman. Every department is at its desk, the registers are in order, and I am watching everything. How may I help you?'); return fin();
     }
     if (q.includes('who are you') || q.includes('tum kon') || q.includes('your name')){
@@ -1385,6 +1463,28 @@ async function runCommand(raw){
       log('<b>J.A.R.V.I.S.:</b> adhoora lafz suna ("' + raw + '") — yeh koi order nahi, nazar andaz kar diya');
       return fin();
     }
+    /* CONVERSATION SAFETY NET (Chairman's live test 2026-11-08): a purely
+       conversational remark that matched nothing above must get a BRAIN
+       answer, never a "which department" question. Anything carrying a
+       company word skips this net and goes to the hub exactly as before. */
+    const WORKY = /(stock|order|report|post|reel|catalog|dispatch|cod|price|rate|customer|care|sales|audit|invoice|payment|delivery|article|kro|karo|bhejo|lagao|banao|chalao|ceo|sana|ahmed|fatima|bilal|ayesha|hassan|imran|usman|mahnoor|zainab|shahid|fahad)/;
+    if (!WORKY.test(q)){
+      try {
+        let ans = '';
+        if (typeof AI_BRAIN !== 'undefined' && AI_BRAIN){
+          const brb = await fetch(API_BASE + '/api/brain', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: raw }), signal: AbortSignal.timeout(30000) });
+          if (brb.ok){ const jb = await brb.json(); ans = String((jb && jb.reply) || '').trim().replace(/\s+/g, ' '); }
+        }
+        if (!ans){
+          const br = await fetch('https://text.pollinations.ai/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'openai', messages: [ { role: 'system', content: 'You are J.A.R.V.I.S., the voice assistant of Chairman Farhan Haider. Answer in at most two short sentences, spoken style, no lists, no markdown. Reply in the same language and script as the message. If the message is a work instruction for the Herbazar company, reply with exactly this word: ROUTE_TO_OFFICE.' }, { role: 'user', content: raw } ] }), signal: AbortSignal.timeout(20000) });
+          ans = (await br.text()).trim().replace(/\s+/g, ' ');
+        }
+        if (ans && !ans.includes('ROUTE_TO_OFFICE') && ans.charAt(0) !== '{'){
+          if (ans.length > 500){ const cut = ans.slice(0, 500); const dot = Math.max(cut.lastIndexOf('.'), cut.lastIndexOf('\u06D4')); ans = dot > 60 ? cut.slice(0, dot + 1) : cut; }
+          say(ans); return fin();
+        }
+      } catch(e){}
+    }
     const placed = await founderOrder('hub', 'SAMAJH');
     await sleep(500);
     if (placed === false) await reportBack('J.A.R.V.I.S.: I could not place that order yet \u2014 name the work (posts, reels, stock, orders, COD, dispatch, catalogue, ads) or a person, and the CEO will execute it and report back himself');
@@ -1445,10 +1545,30 @@ function startListening(){
    readings are held briefly and routed ONCE, as the whole sentence. A short
    clear command still goes immediately. */
 let UTTER_BUF = [], UTTER_TIMER = null;
+/* Stitch fragments without repeating them: the recognizer often re-hears the
+   same words fuller each time ("Have" -> "Have you"), so a plain join used to
+   produce "Have Have you Are you" (Chairman's live test 2026-11-08). A fragment
+   already inside the text is dropped, a fuller re-hearing replaces the shorter
+   one, and overlapping tails are merged once. */
+function stitchUtter(parts){
+  let out = '';
+  for (const p of parts){
+    const s = String(p || '').trim();
+    if (!s) continue;
+    if (!out){ out = s; continue; }
+    const lo = out.toLowerCase(), ls = s.toLowerCase();
+    if (lo.includes(ls)) continue;
+    if (ls.startsWith(lo)){ out = s; continue; }
+    let k = Math.min(lo.length, ls.length);
+    while (k > 0 && lo.slice(-k) !== ls.slice(0, k)) k--;
+    out = k ? (out + s.slice(k)) : (out + ' ' + s);
+  }
+  return out;
+}
 function flushUtter(){
   if (UTTER_TIMER){ clearTimeout(UTTER_TIMER); UTTER_TIMER = null; }
   if (!UTTER_BUF.length) return;
-  const t = UTTER_BUF.join(' '); UTTER_BUF = [];
+  const t = stitchUtter(UTTER_BUF); UTTER_BUF = [];
   runCommand(t);
 }
 function queueUtterance(t){
@@ -1525,7 +1645,7 @@ setTimeout(() => { if (!window.JARVIS_LOCKED) greet(); else window.PENDING_GREET
    anywhere. BACKEND_LIVE is proven by a /api/status probe, never assumed. */
 const JARVIS_API = '';
 const API_BASE = (location.hostname.endsWith('github.io') && JARVIS_API) ? JARVIS_API.replace(/\/$/, '') : '';
-const EXPECTED_BUILD = '2026-11-08.2';
+const EXPECTED_BUILD = 'cloud-2026-11-10.1';
 let BACKEND_LIVE = false;
 let AI_WHISPER = false, AI_BRAIN = false, AI_VOICE = false;
 const DEPT_SLUGS = { inv: 'jarvis-inventory-warehouse', sales: 'jarvis-sales-order-management', fin: 'jarvis-finance-accounts-taxation', care: 'jarvis-customer-care', merch: 'jarvis-merchandising-catalogue', mkt: 'jarvis-digital-marketing-advertising', audit: 'jarvis-command-centre', ceo: 'jarvis-command-centre', hub: 'jarvis-command-centre', content: 'jarvis-brand-content-creative', proc: 'jarvis-procurement-sourcing', stitch: 'jarvis-outsourced-production-vendors', log: 'jarvis-fulfilment-logistics' };
@@ -1561,7 +1681,7 @@ async function backendRun(dept, label){
       try {
         const rr = await fetch(API_BASE + '/api/registers'); const rj = await rr.json();
         const lines = [];
-        (rj.stock || []).forEach(x => lines.push('• ' + (x.article || x.sku) + ' — on hand: ' + (x.stock_on_hand != null ? x.stock_on_hand : '0') + ' · reserved: ' + (x.stock_out_reserved != null ? x.stock_out_reserved : '0') + ' · ' + (x.location || 'Ghar')));
+        (rj.stock || []).forEach(x => lines.push('• ' + (x.article || x.sku) + ' — on hand: ' + ((x.stock_on_hand === '' || x.stock_on_hand == null) ? 'maloom nahi' : x.stock_on_hand) + ' · reserved: ' + (x.stock_out_reserved != null && x.stock_out_reserved !== '' ? x.stock_out_reserved : '0') + ' · ' + (x.location || 'Ghar')));
         (rj.purchases || []).filter(x => String(x.payment_status || '').includes('PR RAISED')).forEach(x => lines.push('• PR pending: ' + (x.article || '') + ' — ' + (x.supplier || '') + ' (rate + qty confirmation baqi)'));
         log(lines.length ? '<b>Written report (registers se):</b><br>' + lines.slice(0, 8).join('<br>') : '<b>Written report:</b> registers mein abhi koi stock ya pending PR nahi hai.');
       } catch(e){}
@@ -1603,8 +1723,8 @@ function connectBackend(quiet){
     R('reg-stock').innerHTML = '<table><tr><th>Article</th><th>On hand</th><th>Reserved</th></tr><tr><td colspan="3">No stock on record — the registers are fresh</td></tr></table>';
     R('reg-cod').innerHTML = '<table><tr><th>Order</th><th>COD</th><th>Courier</th><th>Status</th></tr><tr><td colspan="4">No COD on record — the registers are fresh</td></tr></table>';
     if (j.stock && j.stock.length){
-      DATA.stock = j.stock.map(r => ({ key: shortName(r.article).split(' ')[0].toLowerCase(), name: shortName(r.article), on: +r.stock_on_hand, res: +r.stock_out_reserved, alert: +r.low_stock_alert_at }));
-      R('reg-stock').innerHTML = '<table><tr><th>Article</th><th>On hand</th><th>Reserved</th></tr>' + DATA.stock.map(s => '<tr><td>' + s.name + '</td><td' + (s.on <= s.alert ? ' class="low">' + s.on + ' \u2014 ALERT' : '>' + s.on) + '</td><td>' + s.res + '</td></tr>').join('') + '</table>';
+      DATA.stock = j.stock.map(r => ({ key: shortName(r.article).split(' ')[0].toLowerCase(), name: shortName(r.article), on: (r.stock_on_hand === '' || r.stock_on_hand == null) ? null : +r.stock_on_hand, res: +r.stock_out_reserved || 0, alert: +r.low_stock_alert_at || 0 }));
+      R('reg-stock').innerHTML = '<table><tr><th>Article</th><th>On hand</th><th>Reserved</th></tr>' + DATA.stock.map(s => '<tr><td>' + s.name + '</td><td' + (s.on == null ? '>— · count maloom nahi' : (s.on <= s.alert ? ' class="low">' + s.on + ' \u2014 ALERT' : '>' + s.on)) + '</td><td>' + s.res + '</td></tr>').join('') + '</table>';
     }
     if (j.orders && j.orders.length){
       const o = j.orders[j.orders.length - 1];
@@ -1616,7 +1736,7 @@ function connectBackend(quiet){
       DATA.cod = { amount: +c.cod_amount, status: c.status };
       R('reg-cod').innerHTML = '<table><tr><th>Order</th><th>COD</th><th>Courier</th><th>Status</th></tr>' + j.cod.map(x => '<tr><td><b>\u2026' + x.order_no.slice(-10) + '</b></td><td><b>' + fmt(+x.cod_amount) + '</b></td><td>' + x.courier + '</td><td>' + x.status.replace(/_/g, ' ') + '</td></tr>').join('') + '</table>';
     }
-    DESK.purchases = j.purchases || []; DESK.grn = j.grn || []; DESK.cod = j.cod || []; DESK.links = j.invoice_links || []; DESK.stock = j.stock || []; renderDesk(); renderRisk(j);
+    DESK.purchases = j.purchases || []; DESK.grn = j.grn || []; DESK.cod = j.cod || []; DESK.links = j.invoice_links || []; DESK.stock = j.stock || []; DESK.orders = j.orders || []; renderDesk(); renderRisk(j);
     if (!quiet) log('<b>Connected to the J.A.R.V.I.S. backend</b> \u2014 live trial registers loaded (orders, stock, COD)');
   }).catch(() => {});
   fetch(API_BASE + '/api/tasks').then(r => r.json()).then(j => { window.JARVIS_TASKS = j; renderTaskBoard(); if (!quiet && j && (j.open || j.overdue)) log('<b>CEO task desk (Fahad Iqbal):</b> ' + j.open + ' task(s) open' + (j.overdue ? ', <b>' + j.overdue + ' OVERDUE</b>' : '') + ' — har task pehle accept hota hai, phir saboot ke saath complete'); }).catch(() => {});
